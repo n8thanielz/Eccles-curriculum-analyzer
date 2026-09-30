@@ -454,7 +454,7 @@ function renderResults(){
   const skSel = document.getElementById("skillFilter"); const curSk = skSel.value;
   skSel.innerHTML = '<option value="">All durable skills</option>' + NACE.map(s=>`<option${s===curSk?" selected":""}>${esc(s)}</option>`).join("");
   document.querySelector("#resultsTable thead").innerHTML =
-    "<tr><th style='width:30px'></th><th>Course</th>" +
+    "<tr><th style='width:30px'><input type='checkbox' id='selAllChk' title='Select all'></th><th>Course</th>" +
     (show("Title") ? "<th>Title</th>" : "") +
     "<th>Sec</th><th>Semester</th>" +
     (show("Meeting") ? "<th>Meeting</th>" : "") +
@@ -488,6 +488,10 @@ function renderResults(){
     tr.onclick = () => openDetail(r);
     tb.appendChild(tr);
   }
+  document.getElementById("selAllChk").onchange = e => {
+    document.querySelectorAll('#resultsTable tbody [data-a="sel"]').forEach(cb => { cb.checked = e.target.checked; });
+    shown.forEach(r => r._sel = e.target.checked);
+  };
 }
 ["searchBox","semFilter","skillFilter"].forEach(id => document.getElementById(id).oninput = renderResults);
 
