@@ -218,8 +218,16 @@ let running = false, stopFlag = false, reextractSources = [];
 let hiddenCols = new Set(JSON.parse(localStorage.getItem("sa_hiddenCols")||"[]"));
 function saveHiddenCols(){ localStorage.setItem("sa_hiddenCols", JSON.stringify([...hiddenCols])); }
 
-const REMOVED_FIELDS = new Set(["Pedagogy","Classroom Policies & Conduct","Class Format","Final Exam","Textbooks Required","Articles Required","Subscriptions","Software Platforms","Other Required Materials"]);
-function migrateFields(fields){ return (fields||[]).filter(f=>!REMOVED_FIELDS.has(f.name)); }
+const REMOVED_FIELDS = new Set(["Pedagogy","Classroom Policies & Conduct","Class Format","Final Exam","Required Materials","Textbooks Required","Articles Required","Subscriptions","Software Platforms","Other Required Materials"]);
+function migrateFields(fields){
+  const saved = new Map((fields||[]).filter(f=>!REMOVED_FIELDS.has(f.name)).map(f=>[f.name,f]));
+  const defaultNames = new Set(DEFAULT_FIELDS.map(f=>f.name));
+  // Rebuild in DEFAULT_FIELDS order, using saved on/off state where available
+  const result = DEFAULT_FIELDS.map(df => saved.has(df.name) ? saved.get(df.name) : JSON.parse(JSON.stringify(df)));
+  // Append any surviving custom fields not in DEFAULT_FIELDS
+  for(const [name,f] of saved) if(!defaultNames.has(name)) result.push(f);
+  return result;
+}
 function migrateRows(rows){
   for(const r of rows){
     if(r.title===undefined) r.title="not stated";
