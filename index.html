@@ -221,6 +221,8 @@ let running = false, stopFlag = false, reextractSources = [];
 let hiddenCols = new Set(JSON.parse(localStorage.getItem("sa_hiddenCols")||"[]"));
 function saveHiddenCols(){ localStorage.setItem("sa_hiddenCols", JSON.stringify([...hiddenCols])); }
 
+const REMOVED_FIELDS = new Set(["Pedagogy","Classroom Policies & Conduct","Class Format","Final Exam"]);
+function migrateFields(fields){ return (fields||[]).filter(f=>!REMOVED_FIELDS.has(f.name)); }
 function migrateRows(rows){
   for(const r of rows){
     if(r.title===undefined) r.title="not stated";
@@ -238,7 +240,7 @@ function persist(){
     document.getElementById("storageWarn").style.display = "block";
   }
 }
-function restore(){ try{ const d = JSON.parse(localStorage.getItem("syllabusAnalyzer")); if(d){ S.fields = d.fields||S.fields; S.rows = migrateRows(d.rows||[]); } }catch(e){} }
+function restore(){ try{ const d = JSON.parse(localStorage.getItem("syllabusAnalyzer")); if(d){ S.fields = migrateFields(d.fields)||S.fields; S.rows = migrateRows(d.rows||[]); } }catch(e){} }
 const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
@@ -702,7 +704,7 @@ document.getElementById("dbFileInput").onchange = async e => {
     if(!d.rows) throw new Error("not a Syllabus Analyzer database file");
     const merge = S.rows.length && confirm("OK = MERGE the file's rows into what's already loaded.\nCancel = REPLACE everything with the file.");
     if(merge){ const ids = new Set(S.rows.map(r=>r.id)); migrateRows(d.rows).forEach(r=>{ if(!ids.has(r.id)) S.rows.push(r); }); }
-    else { S.rows = migrateRows(d.rows); S.fields = d.fields || S.fields; }
+    else { S.rows = migrateRows(d.rows); S.fields = migrateFields(d.fields) || S.fields; }
     persist(); renderResults(); renderFields();
     alert("Loaded. "+S.rows.length+" rows in the database.");
   }catch(err){ alert("Could not load file: "+err.message); }
