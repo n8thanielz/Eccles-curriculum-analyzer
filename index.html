@@ -170,7 +170,7 @@
       <li>Export CSV whenever you want to analyze in Excel, Airtable, or Power BI.</li>
     </ol>
     <p><strong>Multi-section syllabi:</strong> A syllabus covering several sections becomes one row per section. Rows from the same file share a Source value.</p>
-    <p><strong>Durable skills:</strong> Tagged against the eight NACE career readiness competencies, each with the evidence the AI found. Treat skills as inferences to verify, not facts.</p>
+    <p><strong>Durable skills:</strong> Tagged against the eleven Essential Skills defined by the David Eccles School of Business, drawing on definitions from AACSB, NACE, USHE, and U of U frameworks. Each tag includes the evidence the AI found. Treat skills as inferences to verify, not facts.</p>
     <p><strong>Adding fields later:</strong> Add the field on the Fields tab, then re-run older syllabi if you need the new field filled in historically.</p>
   </div>
 </div>
@@ -187,7 +187,20 @@
 </div></div>
 
 <script>
-const NACE = ["Career & Self-Development","Communication","Critical Thinking","Equity & Inclusion","Leadership","Professionalism","Teamwork","Technology"];
+const NACE = ["Foundational Analytical Skills","Critical Thinking and Problem-Solving","Quantitative Literacy","Technology and Digital Literacy","Written Communication","Oral and Signed/Supported Communication","Collaboration","Interpersonal Skills","Leadership Skills","Professional Work Ethic","Career Readiness"];
+const SKILL_DEFS = {
+  "Foundational Analytical Skills": "The ability to examine evidence, break down information into parts, and identify patterns and relationships. Look for outcomes or assignments requiring data analysis, case analysis, research synthesis, systematic evaluation of evidence, or logical decomposition of complex problems. (U of U/USHE Essential Skills; AACSB: Analytical Thinking; NACE: Critical Thinking)",
+  "Critical Thinking and Problem-Solving": "The ability to evaluate and analyze information to generate recommendations or propose solutions. Look for assignments where students diagnose problems, weigh alternatives, make decisions under uncertainty, or defend a reasoned position. (U of U/USHE Essential Skills; AACSB: Reflective and Integrative Thinking; NACE: Critical Thinking; U of U CT designation)",
+  "Quantitative Literacy": "The ability to understand, interpret, and use numerical data to reason and solve problems. Look for coursework involving financial modeling, statistical analysis, data visualization, mathematical reasoning, or quantitative decision-making. (U of U/USHE Essential Skills; AACSB: Quantitative Skills; U of U/USHE: Quantitative Reasoning designation)",
+  "Technology and Digital Literacy": "The ability to use software, platforms, and digital tools relevant to professional practice. Look for specific tools or software students are required to use (e.g., Excel, Python, Bloomberg, R, industry-specific platforms). Do NOT tag this skill for generic university platforms such as Canvas or CIS. (U of U/USHE Essential Skills; AACSB: Technology Fluency; NACE: Technology)",
+  "Written Communication": "The ability to understand written information and express ideas effectively through writing. Look for reports, case write-ups, memos, research papers, reflective journals, executive summaries, or other written deliverables. (U of U/USHE Essential Skills; AACSB: Written Communication; NACE: Communication; U of U/USHE Written Communication designation)",
+  "Oral and Signed/Supported Communication": "The ability to deliver information effectively through spoken, signed, or supported communication. Look for presentations, pitches, debates, graded class participation, or any assignment requiring students to communicate verbally or through supported means to an audience. (U of U/USHE Essential Skills; AACSB: Oral Communication; NACE: Communication; U of U/USHE Oral Communication designation)",
+  "Collaboration": "The ability to work effectively with others toward shared outcomes. Look for group projects, team assignments, structured peer review, or any graded or facilitated activity requiring coordinated effort among students. (U of U/USHE Essential Skills; AACSB: Interpersonal Relations and Teamwork; NACE: Teamwork)",
+  "Interpersonal Skills": "The ability to build and maintain productive relationships with others, including across differences. Look for networking activities, client or stakeholder interaction assignments, peer feedback exercises, professional relationship-building, or cross-cultural and diversity-focused engagement. (U of U/USHE Essential Skills; AACSB: Interpersonal Relations, Diverse and Multicultural Perspectives; NACE: Professionalism, Equity and Inclusion)",
+  "Leadership Skills": "The ability to guide, motivate, and influence others toward a shared goal. Look for leadership theory content, assignments involving leading teams or projects, facilitation roles, or course outcomes explicitly naming leadership development. (U of U/USHE Essential Skills; AACSB: Leadership Development; NACE: Leadership)",
+  "Professional Work Ethic": "Demonstrating responsibility, integrity, and accountability in meeting commitments. Look for explicit professionalism expectations, ethical reasoning assignments, professional conduct policies with course-specific consequences, or content addressing business ethics, integrity, or accountability. (U of U/USHE Essential Skills; AACSB: Ethical Reasoning and Responsibility; NACE: Professionalism)",
+  "Career Readiness": "The ability to demonstrate and develop the competencies needed to navigate and advance in the workplace. Look for career development content, resume or interview preparation, workplace simulations, industry mentorship, networking activities, or outcomes explicitly framed in terms of professional or career readiness. (U of U/USHE Essential Skills; AACSB: Application of Knowledge in Professional Contexts; NACE: Career and Self-Development)"
+};
 const DEFAULT_FIELDS = [
  {on:true,name:"Learning Outcomes",def:"The stated learning outcomes, objectives, or goals of the course. List each one. They may appear under headings like Course Objectives, Course Outcomes, or inside prose such as 'by the end of this course students will be able to'."},
  {on:true,name:"Topics Covered",def:"The main subject-matter topics taught, drawn from the course description and the week-by-week schedule. List distinct topics, not dates."},
@@ -308,7 +321,7 @@ Also extract these standard items:
 - section: the section number (e.g. "009"). If the syllabus covers multiple sections, output ONE object per section. If no section number is stated, output one object with section "not stated".
 - meeting_pattern: the days and times the section meets (e.g. "MWF 9:10–10:00 AM", "TR 2:00–3:20 PM"). SECTION-SPECIFIC — will differ across sections.
 - location: the classroom, building, or delivery mode for this section (e.g. "SFEBB 2110", "online", "hybrid"). SECTION-SPECIFIC.
-- durable_skills: judge which of these NACE career readiness competencies the course develops: ${NACE.join("; ")}. Only tag a skill when the syllabus contains concrete evidence (an activity, assignment, outcome, or policy). For each, give the evidence briefly. Do not tag skills without evidence. Shared across sections.
+- durable_skills: assess which of these Essential Skills the course develops. Only tag a skill when the syllabus contains concrete evidence (an activity, assignment, outcome, or policy). For each tagged skill, briefly state the evidence found. Do not tag skills without evidence. Shared across sections. The skills and their definitions are:\n${NACE.map(s=>`  - ${s}: ${SKILL_DEFS[s]}`).join("\n")}
 - confidence_flags: list the names of any fields (custom or standard) where you were uncertain, the document was ambiguous, or you had to interpret heavily.
 
 Rules:
