@@ -90,7 +90,6 @@
       <input type="text" id="searchBox" placeholder="Search all fields...">
       <select id="semFilter"><option value="">All semesters</option></select>
       <select id="skillFilter"><option value="">All durable skills</option></select>
-      <select id="reviewFilter"><option value="">Reviewed & unreviewed</option><option value="yes">Reviewed only</option><option value="no">Unreviewed only</option></select>
       <span class="small" id="rowCount"></span>
     </div>
     <div class="toolbar">
@@ -105,7 +104,7 @@
     </div>
     <div id="colPanel" style="display:none;background:#f9f9f9;border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:8px;flex-wrap:wrap;gap:4px 0"></div>
     <p class="small" id="reextractStatus" style="margin-bottom:4px;display:none"></p>
-    <p class="small" style="margin-bottom:8px">Yellow cells were flagged by the AI as uncertain, or read "not stated". Click any row to review and edit it. Checking a row marks it spot-checked.</p>
+    <p class="small" style="margin-bottom:8px">Yellow cells were flagged by the AI as uncertain, or read "not stated". Click any row to review and edit it.</p>
     <div style="overflow:auto; max-height:65vh">
       <table id="resultsTable"><thead></thead><tbody></tbody></table>
     </div>
@@ -437,11 +436,8 @@ function rowMatches(r){
   const q = document.getElementById("searchBox").value.toLowerCase();
   const sem = document.getElementById("semFilter").value;
   const sk = document.getElementById("skillFilter").value;
-  const rv = document.getElementById("reviewFilter").value;
   if(sem && (r.semester+" "+r.year) !== sem) return false;
   if(sk && !r.skills.some(s=>s.skill===sk)) return false;
-  if(rv==="yes" && !r.reviewed) return false;
-  if(rv==="no" && r.reviewed) return false;
   if(q){
     const blob = [r.source,r.course,r.title,r.section,r.semester,r.year,r.instructor,r.meeting_pattern,r.location,JSON.stringify(r.fields),JSON.stringify(r.skills)].join(" ").toLowerCase();
     if(!blob.includes(q)) return false;
@@ -458,7 +454,7 @@ function renderResults(){
   const skSel = document.getElementById("skillFilter"); const curSk = skSel.value;
   skSel.innerHTML = '<option value="">All durable skills</option>' + NACE.map(s=>`<option${s===curSk?" selected":""}>${esc(s)}</option>`).join("");
   document.querySelector("#resultsTable thead").innerHTML =
-    "<tr><th style='width:30px'>✓</th><th>Course</th>" +
+    "<tr><th style='width:30px'></th><th>Course</th>" +
     (show("Title") ? "<th>Title</th>" : "") +
     "<th>Sec</th><th>Semester</th>" +
     (show("Meeting") ? "<th>Meeting</th>" : "") +
@@ -466,7 +462,7 @@ function renderResults(){
     (show("Instructor") ? "<th>Instructor</th>" : "") +
     (show("Durable Skills") ? "<th>Durable Skills</th>" : "") +
     visNames.map(n=>"<th>"+esc(n)+"</th>").join("") +
-    "<th style='width:30px'>Sel</th></tr>";
+    "</tr>";
   const tb = document.querySelector("#resultsTable tbody"); tb.innerHTML = "";
   const shown = S.rows.filter(rowMatches);
   document.getElementById("rowCount").textContent = shown.length + " of " + S.rows.length + " rows";
@@ -479,7 +475,7 @@ function renderResults(){
       return `<td class="${bad?"flagged":""}">${esc(short)}</td>`;
     };
     const sectionFlagged = k => r.flags.includes(k) || (r[k]||"").trim().toLowerCase()==="not stated";
-    tr.innerHTML = `<td><input type="checkbox" ${r.reviewed?"checked":""} data-a="rev"></td>
+    tr.innerHTML = `<td><input type="checkbox" data-a="sel"></td>
       <td>${esc(r.course)}</td>` +
       (show("Title") ? `<td class="${(r.title||"")==="not stated"?"flagged":""}">${esc(r.title||"not stated")}</td>` : "") +
       `<td>${esc(r.section)}</td><td>${esc(r.semester)} ${esc(r.year)}</td>` +
@@ -487,15 +483,13 @@ function renderResults(){
       (show("Location") ? `<td class="${sectionFlagged("location")?"flagged":""}">${esc(r.location||"not stated")}</td>` : "") +
       (show("Instructor") ? `<td class="${sectionFlagged("instructor")?"flagged":""}">${esc(r.instructor)}</td>` : "") +
       (show("Durable Skills") ? `<td>${r.skills.map(s=>`<span class="chip" title="${esc(s.evidence)}">${esc(s.skill)}</span>`).join("")}</td>` : "") +
-      visNames.map(cell).join("") +
-      `<td><input type="checkbox" data-a="sel"></td>`;
-    tr.querySelector('[data-a="rev"]').onclick = e => { e.stopPropagation(); r.reviewed = e.target.checked; persist(); };
+      visNames.map(cell).join("");
     tr.querySelector('[data-a="sel"]').onclick = e => { e.stopPropagation(); r._sel = e.target.checked; };
     tr.onclick = () => openDetail(r);
     tb.appendChild(tr);
   }
 }
-["searchBox","semFilter","skillFilter","reviewFilter"].forEach(id => document.getElementById(id).oninput = renderResults);
+["searchBox","semFilter","skillFilter"].forEach(id => document.getElementById(id).oninput = renderResults);
 
 function renderColPanel(){
   const toggleable = ["Title","Meeting","Location","Instructor","Durable Skills",...activeFieldNames()];
@@ -613,7 +607,7 @@ document.getElementById("detailSave").onclick = () => {
   box.querySelectorAll("[data-core]").forEach(i => editing[i.dataset.core] = i.value.trim());
   box.querySelectorAll("[data-field]").forEach(t => editing.fields[t.dataset.field] = t.value.trim());
   editing.skills = box.querySelector("[data-skills]").value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const [sk,...ev]=l.split("|"); return {skill:sk.trim(), evidence:ev.join("|").trim()}; });
-  editing.reviewed = true; persist(); renderResults();
+  persist(); renderResults();
   document.getElementById("detailModal").style.display = "none";
 };
 
@@ -712,7 +706,7 @@ document.getElementById("dbFileInput").onchange = async e => {
 };
 document.getElementById("csvBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Durable Skills","Skills Evidence","AI Uncertainty Flags","Spot-Checked"];
+  const head = ["Source File","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Durable Skills","Skills Evidence","AI Uncertainty Flags"];
   const csvCell = v => '"' + String(v==null?"":v).replace(/"/g,'""') + '"';
   const lines = [head.map(csvCell).join(",")];
   for(const r of S.rows.filter(rowMatches)){
@@ -720,7 +714,7 @@ document.getElementById("csvBtn").onclick = () => {
       ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
       r.skills.map(s=>s.skill).join("; "),
       r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
-      r.flags.join("; "), r.reviewed?"yes":"no"].map(csvCell).join(","));
+      r.flags.join("; ")].map(csvCell).join(","));
   }
   download("syllabus-export-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
 };
