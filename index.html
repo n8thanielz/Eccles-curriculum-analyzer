@@ -114,7 +114,9 @@
 
 <div class="tab" id="tab-skills">
   <div class="card">
-    <div class="toolbar">
+    <div class="toolbar" style="margin-bottom:4px">
+      <button class="secondary" id="essBtn" style="font-weight:600">Essential Skills</button>
+      <button class="secondary" id="naceBtn">NACE Competencies</button>
       <select id="skillsSemFilter"><option value="">All semesters</option></select>
       <span class="small" id="skillsCount"></span>
     </div>
@@ -201,6 +203,8 @@ const SKILL_DEFS = {
   "Professional Work Ethic": "Demonstrating responsibility, integrity, and accountability in meeting commitments. Look for explicit professionalism expectations, ethical reasoning assignments, professional conduct policies with course-specific consequences, or content addressing business ethics, integrity, or accountability. (U of U/USHE Essential Skills; AACSB: Ethical Reasoning and Responsibility; NACE: Professionalism)",
   "Career Readiness": "The ability to demonstrate and develop the competencies needed to navigate and advance in the workplace. Look for career development content, resume or interview preparation, workplace simulations, industry mentorship, networking activities, or outcomes explicitly framed in terms of professional or career readiness. (U of U/USHE Essential Skills; AACSB: Application of Knowledge in Professional Contexts; NACE: Career and Self-Development)"
 };
+const NACE8 = ["Career & Self-Development","Communication","Critical Thinking","Equity & Inclusion","Leadership","Professionalism","Teamwork","Technology"];
+const NACE8_DEFS = "Career & Self-Development: proactively develop oneself and one's career through continual personal and professional learning, awareness of strengths and weaknesses, and networking; Communication: clearly and effectively exchange information, ideas, facts, and perspectives with persons inside and outside an organization; Critical Thinking: identify and respond to needs based on logical analysis of relevant information to make sound decisions; Equity & Inclusion: demonstrate awareness, attitude, knowledge, and skills to equitably engage and include people from diverse local and global cultures; Leadership: recognize and capitalize on personal and team strengths to achieve organizational goals; Professionalism: understand and demonstrate effective work habits and act in the interest of the larger community and workplace; Teamwork: build and maintain collaborative relationships to work effectively toward common goals while appreciating diverse viewpoints; Technology: understand and leverage technologies ethically to enhance efficiencies and accomplish goals";
 const DEFAULT_FIELDS = [
  {on:true,name:"Learning Outcomes",def:"The stated learning outcomes, objectives, or goals of the course. List each one. They may appear under headings like Course Objectives, Course Outcomes, or inside prose such as 'by the end of this course students will be able to'."},
  {on:true,name:"Topics Covered",def:"The main subject-matter topics taught, drawn from the course description and the week-by-week schedule. List distinct topics, not dates."},
@@ -219,6 +223,7 @@ function migrateRows(rows){
     if(r.title===undefined) r.title="not stated";
     if(r.meeting_pattern===undefined) r.meeting_pattern="not stated";
     if(r.location===undefined) r.location="not stated";
+    if(r.nace_skills===undefined) r.nace_skills=[];
   }
   return rows;
 }
@@ -322,6 +327,7 @@ Also extract these standard items:
 - meeting_pattern: the days and times the section meets (e.g. "MWF 9:10–10:00 AM", "TR 2:00–3:20 PM"). SECTION-SPECIFIC — will differ across sections.
 - location: the classroom, building, or delivery mode for this section (e.g. "SFEBB 2110", "online", "hybrid"). SECTION-SPECIFIC.
 - durable_skills: assess which of these Essential Skills the course develops. Only tag a skill when the syllabus contains concrete evidence (an activity, assignment, outcome, or policy). For each tagged skill, briefly state the evidence found. Do not tag skills without evidence. Shared across sections. The skills and their definitions are:\n${NACE.map(s=>`  - ${s}: ${SKILL_DEFS[s]}`).join("\n")}
+- nace_skills: separately, also assess which of these eight NACE career readiness competencies the course develops: ${NACE8_DEFS}. Apply the same evidence rules — only tag with concrete evidence, briefly state the evidence. Shared across sections.
 - confidence_flags: list the names of any fields (custom or standard) where you were uncertain, the document was ambiguous, or you had to interpret heavily.
 
 Rules:
@@ -331,7 +337,7 @@ Rules:
 - Base everything strictly on the document.
 
 Return ONLY valid JSON, no markdown fences, in this exact shape:
-{"sections":[{"course_number":"","course_title":"","section":"","semester":"","year":"","instructor":"","meeting_pattern":"","location":"","fields":{${active.map(f=>`"${f.name}":""`).join(",")}},"durable_skills":[{"skill":"","evidence":""}],"confidence_flags":[]}]}`;
+{"sections":[{"course_number":"","course_title":"","section":"","semester":"","year":"","instructor":"","meeting_pattern":"","location":"","fields":{${active.map(f=>`"${f.name}":""`).join(",")}},"durable_skills":[{"skill":"","evidence":""}],"nace_skills":[{"skill":"","evidence":""}],"confidence_flags":[]}]}`;
 }
 
 function buildHint(q){
@@ -407,6 +413,7 @@ document.getElementById("runBtn").onclick = async () => {
           location: s.location || "not stated",
           fields: s.fields || {},
           skills: Array.isArray(s.durable_skills) ? s.durable_skills.filter(k=>k&&k.skill) : [],
+          nace_skills: Array.isArray(s.nace_skills) ? s.nace_skills.filter(k=>k&&k.skill) : [],
           flags: Array.isArray(s.confidence_flags) ? s.confidence_flags : [],
           reviewed: false, extractedAt: new Date().toISOString()
         });
@@ -607,7 +614,13 @@ document.getElementById("detailSave").onclick = () => {
 };
 
 /* ---------- skills matrix ---------- */
+let skillsView = 'essential';
 function renderSkills(){
+  const skillList = skillsView === 'essential' ? NACE : NACE8;
+  const rowField  = skillsView === 'essential' ? 'skills' : 'nace_skills';
+  document.getElementById("essBtn").style.fontWeight  = skillsView === 'essential' ? '600' : '';
+  document.getElementById("naceBtn").style.fontWeight = skillsView === 'nace'      ? '600' : '';
+
   const semSel = document.getElementById("skillsSemFilter");
   const semSet = [...new Set(S.rows.map(r=>r.semester+" "+r.year))].sort();
   const cur = semSel.value;
@@ -619,7 +632,7 @@ function renderSkills(){
   for(const r of rows){
     if(!courseMap.has(r.course)) courseMap.set(r.course, new Map());
     const sm = courseMap.get(r.course);
-    for(const s of r.skills){
+    for(const s of (r[rowField]||[])){
       if(!sm.has(s.skill)) sm.set(s.skill, []);
       if(s.evidence) sm.get(s.skill).push(s.evidence);
     }
@@ -628,13 +641,13 @@ function renderSkills(){
   document.getElementById("skillsCount").textContent = courses.length+" course(s)";
 
   const tbl = document.getElementById("skillsTable");
-  tbl.querySelector("thead").innerHTML = "<tr><th>Course</th>"+NACE.map(s=>`<th style="width:100px;text-align:center;font-size:12px">${esc(s)}</th>`).join("")+"</tr>";
+  tbl.querySelector("thead").innerHTML = "<tr><th>Course</th>"+skillList.map(s=>`<th style="width:100px;text-align:center;font-size:12px">${esc(s)}</th>`).join("")+"</tr>";
   const tb = tbl.querySelector("tbody"); tb.innerHTML = "";
   for(const course of courses){
     const sm = courseMap.get(course);
     const tr = document.createElement("tr");
     let h = `<td>${esc(course)}</td>`;
-    for(const skill of NACE){
+    for(const skill of skillList){
       const ev = sm.get(skill);
       h += ev
         ? `<td style="text-align:center"><span title="${esc([...new Set(ev)].join(" | "))}" style="color:#1a7f37;font-size:16px;cursor:default">✓</span></td>`
@@ -644,10 +657,12 @@ function renderSkills(){
   }
   const totals = document.createElement("tr");
   totals.style.cssText = "font-weight:600;background:#f4f4f4";
-  totals.innerHTML = "<td>Courses with skill</td>"+NACE.map(skill=>`<td style="text-align:center">${courses.filter(c=>courseMap.get(c).has(skill)).length}</td>`).join("");
+  totals.innerHTML = "<td>Courses with skill</td>"+skillList.map(skill=>`<td style="text-align:center">${courses.filter(c=>courseMap.get(c).has(skill)).length}</td>`).join("");
   tb.appendChild(totals);
 }
 document.getElementById("skillsSemFilter").oninput = renderSkills;
+document.getElementById("essBtn").onclick  = () => { skillsView = 'essential'; renderSkills(); };
+document.getElementById("naceBtn").onclick = () => { skillsView = 'nace';      renderSkills(); };
 
 /* ---------- fields tab ---------- */
 function renderFields(){
