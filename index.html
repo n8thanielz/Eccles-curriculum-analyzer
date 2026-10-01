@@ -608,7 +608,8 @@ function openDetail(r){
   for(const n of names){
     h += `<label>${esc(n)}${r.flags.includes(n)?" (AI flagged uncertain)":""}</label><textarea data-field="${esc(n)}">${esc(r.fields[n]==null?"not stated":r.fields[n])}</textarea>`;
   }
-  h += `<label>Durable skills (one per line, format Skill | evidence)</label><textarea data-skills>${esc(r.skills.map(s=>s.skill+" | "+s.evidence).join("\n"))}</textarea>`;
+  h += `<label>Essential Skills (one per line: Skill | evidence)</label><textarea data-skills>${esc(r.skills.map(s=>s.skill+" | "+s.evidence).join("\n"))}</textarea>`;
+  h += `<label>NACE Competencies (one per line: Skill | evidence)</label><textarea data-nace-skills>${esc((r.nace_skills||[]).map(s=>s.skill+" | "+s.evidence).join("\n"))}</textarea>`;
   document.getElementById("detailBody").innerHTML = h;
   document.getElementById("detailModal").style.display = "block";
 }
@@ -617,7 +618,9 @@ document.getElementById("detailSave").onclick = () => {
   const box = document.getElementById("detailBody");
   box.querySelectorAll("[data-core]").forEach(i => editing[i.dataset.core] = i.value.trim());
   box.querySelectorAll("[data-field]").forEach(t => editing.fields[t.dataset.field] = t.value.trim());
-  editing.skills = box.querySelector("[data-skills]").value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const [sk,...ev]=l.split("|"); return {skill:sk.trim(), evidence:ev.join("|").trim()}; });
+  const parseSkills = ta => ta.value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const [sk,...ev]=l.split("|"); return {skill:sk.trim(), evidence:ev.join("|").trim()}; });
+  editing.skills = parseSkills(box.querySelector("[data-skills]"));
+  editing.nace_skills = parseSkills(box.querySelector("[data-nace-skills]"));
   persist(); renderResults();
   document.getElementById("detailModal").style.display = "none";
 };
@@ -717,7 +720,7 @@ document.getElementById("dbFileInput").onchange = async e => {
 };
 document.getElementById("csvBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Durable Skills","Skills Evidence","AI Uncertainty Flags"];
+  const head = ["Source File","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Evidence","NACE Competencies","NACE Evidence","AI Uncertainty Flags"];
   const csvCell = v => '"' + String(v==null?"":v).replace(/"/g,'""') + '"';
   const lines = [head.map(csvCell).join(",")];
   for(const r of S.rows.filter(rowMatches)){
@@ -725,6 +728,8 @@ document.getElementById("csvBtn").onclick = () => {
       ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
       r.skills.map(s=>s.skill).join("; "),
       r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
+      (r.nace_skills||[]).map(s=>s.skill).join("; "),
+      (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
       r.flags.join("; ")].map(csvCell).join(","));
   }
   download("syllabus-export-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
