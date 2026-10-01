@@ -189,8 +189,11 @@
   <div id="detailBody"></div>
   <div class="toolbar" style="margin-top:16px">
     <button class="primary" id="detailSave">Save Changes</button>
+    <button class="secondary" id="detailReextract">Re-extract This Row</button>
     <button class="secondary" id="detailClose">Close</button>
   </div>
+  <p class="small" id="detailReextractMsg" style="margin-top:8px;display:none"></p>
+  <input type="file" id="detailReextractInput" accept=".pdf,.docx,.xlsx,.xls,.txt" style="display:none">
 </div></div>
 
 <script>
@@ -495,8 +498,9 @@ function renderResults(){
       return `<td class="${bad?"flagged":""}">${esc(short)}</td>`;
     };
     const sectionFlagged = k => r.flags.includes(k) || (r[k]||"").trim().toLowerCase()==="not stated";
+    const flagBadge = r.flags.length ? ` <span style="background:#e07a00;color:#fff;border-radius:3px;padding:1px 5px;font-size:11px;font-weight:600;cursor:default" title="AI flagged uncertain: ${esc(r.flags.join(', '))}">⚠ ${r.flags.length}</span>` : '';
     tr.innerHTML = `<td><input type="checkbox" data-a="sel"></td>
-      <td>${esc(r.course)}</td>` +
+      <td>${esc(r.course)}${flagBadge}</td>` +
       (show("Title") ? `<td class="${(r.title||"")==="not stated"?"flagged":""}">${esc(r.title||"not stated")}</td>` : "") +
       `<td>${esc(r.section)}</td><td>${esc(r.semester)} ${esc(r.year)}</td>` +
       (show("Meeting") ? `<td class="${sectionFlagged("meeting_pattern")?"flagged":""}">${esc(r.meeting_pattern||"not stated")}</td>` : "") +
@@ -641,6 +645,45 @@ document.getElementById("detailSave").onclick = () => {
   editing.nace_skills = parseSkills(box.querySelector("[data-nace-skills]"));
   persist(); renderResults();
   document.getElementById("detailModal").style.display = "none";
+};
+document.getElementById("detailReextract").onclick = () => {
+  if(running){ alert("An extraction is already running. Wait for it to finish."); return; }
+  if(!localStorage.getItem("sa_apiKey")){ alert("Add the API key in Settings first."); return; }
+  document.getElementById("detailReextractInput").click();
+};
+document.getElementById("detailReextractInput").onchange = async e => {
+  const file = e.target.files[0]; e.target.value = "";
+  if(!file) return;
+  const src = editing.source;
+  if(file.name !== src && !confirm(`Selected file "${file.name}" does not match source "${src}". Continue?`)) return;
+  const msg = document.getElementById("detailReextractMsg");
+  msg.style.display = "block"; msg.textContent = "Re-extracting…";
+  document.getElementById("detailReextract").disabled = true;
+  running = true;
+  const ext = file.name.split(".").pop().toLowerCase();
+  const q = { id:uid(), file, name:file.name, ext, course:editing.course, semester:editing.semester, year:editing.year };
+  try{
+    const block = await getContentBlock(q);
+    const parsed = parseResult(await callClaude(block, buildSystemPrompt(), buildHint(q)));
+    const secs = Array.isArray(parsed.sections)&&parsed.sections.length ? parsed.sections : [parsed];
+    S.rows = S.rows.filter(r=>r.source!==src);
+    for(const s of secs){
+      S.rows.push({ id:uid(), source:src,
+        course:s.course_number||q.course||"not stated", title:s.course_title||"not stated",
+        section:s.section||"not stated", semester:s.semester||q.semester||"not stated",
+        year:String(s.year||q.year||"not stated"), instructor:s.instructor||"not stated",
+        meeting_pattern:s.meeting_pattern||"not stated", location:s.location||"not stated",
+        fields:s.fields||{},
+        skills:Array.isArray(s.durable_skills)?s.durable_skills.filter(k=>k&&k.skill):[],
+        nace_skills:Array.isArray(s.nace_skills)?s.nace_skills.filter(k=>k&&k.skill):[],
+        flags:Array.isArray(s.confidence_flags)?s.confidence_flags:[], extractedAt:new Date().toISOString() });
+    }
+    persist();
+    document.getElementById("detailModal").style.display = "none";
+    renderResults(); renderSkills();
+  }catch(err){ msg.textContent = "Error: "+err.message; }
+  running = false;
+  document.getElementById("detailReextract").disabled = false;
 };
 
 /* ---------- skills matrix ---------- */
