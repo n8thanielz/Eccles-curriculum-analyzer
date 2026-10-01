@@ -98,6 +98,7 @@
     </div>
     <div class="toolbar">
       <button class="primary" id="csvBtn">Export CSV</button>
+      <button class="secondary" id="xlsxBtn">Export Excel</button>
       <button class="secondary" id="saveDbBtn">Save Database File</button>
       <button class="secondary" id="loadDbBtn">Load Database File</button>
       <button class="secondary" id="deleteSelBtn">Delete Selected</button>
@@ -122,6 +123,7 @@
       <button class="secondary" id="naceBtn">NACE Competencies</button>
       <select id="skillsSemFilter"><option value="">All semesters</option></select>
       <span class="small" id="skillsCount"></span>
+      <button class="secondary" id="matrixCsvBtn" style="margin-left:auto">Export Matrix CSV</button>
     </div>
     <p class="small" style="margin-bottom:8px">Each row is a unique course number. A checkmark means at least one extracted syllabus for that course cited evidence for that competency. Hover a checkmark to read the AI's evidence. The totals row counts how many courses have evidence for each skill.</p>
     <div style="overflow:auto; max-height:65vh">
@@ -758,6 +760,46 @@ document.getElementById("csvBtn").onclick = () => {
       r.flags.join("; ")].map(csvCell).join(","));
   }
   download("syllabus-export-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
+};
+document.getElementById("xlsxBtn").onclick = () => {
+  const names = activeFieldNames();
+  const head = ["Source File","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Evidence","NACE Competencies","NACE Evidence","AI Uncertainty Flags"];
+  const data = [head];
+  for(const r of S.rows.filter(rowMatches)){
+    data.push([r.source,r.course,r.title||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
+      ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
+      r.skills.map(s=>s.skill).join("; "),
+      r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
+      (r.nace_skills||[]).map(s=>s.skill).join("; "),
+      (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
+      r.flags.join("; ")]);
+  }
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!freeze"] = {xSplit:0, ySplit:1};
+  const colWidths = head.map((_,i)=>({ wch: Math.min(60, Math.max(12, ...data.map(row=>String(row[i]||"").length))) }));
+  ws["!cols"] = colWidths;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Results");
+  XLSX.writeFile(wb, "syllabus-export-"+new Date().toISOString().slice(0,10)+".xlsx");
+};
+document.getElementById("matrixCsvBtn").onclick = () => {
+  const skillList = skillsView === 'essential' ? NACE : NACE8;
+  const label = skillsView === 'essential' ? 'essential-skills' : 'nace';
+  const sem = document.getElementById("skillsSemFilter").value;
+  const rows = sem ? S.rows.filter(r=>(r.semester+" "+r.year)===sem) : S.rows;
+  const rowField = skillsView === 'essential' ? 'skills' : 'nace_skills';
+  const courseMap = new Map();
+  for(const r of rows){
+    if(!courseMap.has(r.course)) courseMap.set(r.course, new Map());
+    const sm = courseMap.get(r.course);
+    for(const s of (r[rowField]||[])){ if(!sm.has(s.skill)) sm.set(s.skill,[]); if(s.evidence) sm.get(s.skill).push(s.evidence); }
+  }
+  const courses = [...courseMap.keys()].sort();
+  const csvCell = v => '"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+  const lines = [["Course",...skillList].map(csvCell).join(",")];
+  for(const c of courses) lines.push([c,...skillList.map(sk=>courseMap.get(c).has(sk)?"Yes":"No")].map(csvCell).join(","));
+  lines.push(["Courses with skill",...skillList.map(sk=>courses.filter(c=>courseMap.get(c).has(sk)).length)].map(csvCell).join(","));
+  download("skills-matrix-"+label+"-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
 };
 
 /* ---------- settings ---------- */
