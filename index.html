@@ -44,6 +44,7 @@
   .warn { background:var(--flag); border:1px solid #e0c860; border-radius:6px; padding:10px 14px; font-size:13px; margin-bottom:12px; }
   .small { font-size:12px; color:#666; }
   progress { width:100%; height:14px; }
+  .btn-active { background:var(--crimson); color:#fff; border-color:var(--crimson); }
 </style>
 </head>
 <body>
@@ -65,6 +66,9 @@
 </div>
 
 <div class="tab active" id="tab-upload">
+  <div id="apiKeyNudge" class="warn" style="display:none">
+    <strong>No API key saved.</strong> Go to <a href="#" id="nudgeSettingsLink" style="color:inherit;font-weight:600">Settings</a> and paste the Anthropic API key before running extractions.
+  </div>
   <div class="card">
     <h2>Add syllabi</h2>
     <div id="dropzone">Drag syllabus files here or click to browse<br><span class="small">Accepts PDF, Word (.docx), Excel (.xlsx), and text files</span></div>
@@ -114,7 +118,7 @@
 <div class="tab" id="tab-skills">
   <div class="card">
     <div class="toolbar" style="margin-bottom:4px">
-      <button class="secondary" id="essBtn" style="font-weight:600">Essential Skills</button>
+      <button class="secondary btn-active" id="essBtn">Essential Skills</button>
       <button class="secondary" id="naceBtn">NACE Competencies</button>
       <select id="skillsSemFilter"><option value="">All semesters</option></select>
       <span class="small" id="skillsCount"></span>
@@ -433,7 +437,12 @@ document.getElementById("runBtn").onclick = async () => {
     done++; prog.value = done; renderQueue();
   }
   running = false; document.getElementById("runBtn").disabled=false; document.getElementById("stopBtn").disabled=true;
-  document.getElementById("progText").textContent = stopFlag ? "Stopped." : "Finished. See the Results tab.";
+  if(stopFlag){
+    document.getElementById("progText").textContent = "Stopped.";
+  } else {
+    document.getElementById("progText").textContent = `Done — ${S.rows.length} row(s) in the database.`;
+    document.querySelector("nav button[data-tab='results']").click();
+  }
 };
 document.getElementById("stopBtn").onclick = () => { stopFlag = true; };
 
@@ -630,8 +639,8 @@ let skillsView = 'essential';
 function renderSkills(){
   const skillList = skillsView === 'essential' ? NACE : NACE8;
   const rowField  = skillsView === 'essential' ? 'skills' : 'nace_skills';
-  document.getElementById("essBtn").style.fontWeight  = skillsView === 'essential' ? '600' : '';
-  document.getElementById("naceBtn").style.fontWeight = skillsView === 'nace'      ? '600' : '';
+  document.getElementById("essBtn").classList.toggle("btn-active",  skillsView === 'essential');
+  document.getElementById("naceBtn").classList.toggle("btn-active", skillsView === 'nace');
 
   const semSel = document.getElementById("skillsSemFilter");
   const semSet = [...new Set(S.rows.map(r=>r.semester+" "+r.year))].sort();
@@ -683,9 +692,11 @@ function renderFields(){
     const tr = document.createElement("tr");
     tr.innerHTML = `<td><input type="checkbox" ${f.on?"checked":""}></td>
       <td><input value="${esc(f.name)}"></td>
-      <td><input value="${esc(f.def)}" class="field-def"></td>
+      <td><textarea class="field-def" style="min-height:60px;width:100%;resize:vertical">${esc(f.def)}</textarea></td>
       <td><button class="secondary" style="padding:3px 8px">✕</button></td>`;
-    const [chk, nameI, defI] = tr.querySelectorAll("input");
+    const chk = tr.querySelector("input[type=checkbox]");
+    const nameI = tr.querySelector("input:not([type=checkbox])");
+    const defI = tr.querySelector("textarea");
     chk.onchange = () => { f.on = chk.checked; persist(); };
     nameI.onchange = () => { f.name = nameI.value.trim() || f.name; persist(); };
     defI.onchange = () => { f.def = defI.value.trim(); persist(); };
@@ -736,10 +747,19 @@ document.getElementById("csvBtn").onclick = () => {
 };
 
 /* ---------- settings ---------- */
+function updateApiNudge(){
+  const missing = !localStorage.getItem("sa_apiKey");
+  document.getElementById("apiKeyNudge").style.display = missing ? "block" : "none";
+}
+document.getElementById("nudgeSettingsLink").onclick = e => {
+  e.preventDefault();
+  document.querySelector("nav button[data-tab='settings']").click();
+};
 document.getElementById("saveSettingsBtn").onclick = () => {
   localStorage.setItem("sa_apiKey", document.getElementById("apiKey").value.trim());
   localStorage.setItem("sa_model", document.getElementById("modelSelect").value);
   document.getElementById("settingsMsg").textContent = "Saved.";
+  updateApiNudge();
 };
 document.getElementById("wipeBtn").onclick = () => {
   if(confirm("Erase all rows, fields, and the API key stored in this browser? Saved database files are unaffected.")){
@@ -751,7 +771,7 @@ document.getElementById("wipeBtn").onclick = () => {
 restore();
 document.getElementById("apiKey").value = localStorage.getItem("sa_apiKey")||"";
 document.getElementById("modelSelect").value = localStorage.getItem("sa_model")||"claude-sonnet-4-6";
-renderQueue(); renderFields(); renderResults(); renderSkills();
+renderQueue(); renderFields(); renderResults(); renderSkills(); updateApiNudge();
 </script>
 </body>
 </html>
