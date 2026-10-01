@@ -89,7 +89,7 @@
     <div class="toolbar">
       <input type="text" id="searchBox" placeholder="Search all fields...">
       <select id="semFilter"><option value="">All semesters</option></select>
-      <select id="skillFilter"><option value="">All durable skills</option></select>
+      <select id="skillFilter"><option value="">All essential skills</option></select>
       <span class="small" id="rowCount"></span>
     </div>
     <div class="toolbar">
@@ -129,7 +129,7 @@
 <div class="tab" id="tab-fields">
   <div class="card">
     <h2>Extraction fields</h2>
-    <p class="small" style="margin-bottom:10px">Each field has a name and a definition. The definition is the instruction the AI follows, so write it the way you would explain the field to a new employee. Changes apply to the next extraction run. Course number, section, semester, year, instructor, durable skills, and confidence flags are always extracted and cannot be removed.</p>
+    <p class="small" style="margin-bottom:10px">Each field has a name and a definition. The definition is the instruction the AI follows, so write it the way you would explain the field to a new employee. Changes apply to the next extraction run. Course number, section, semester, year, instructor, essential skills, NACE competencies, and confidence flags are always extracted and cannot be removed.</p>
     <table id="fieldsTable"><thead><tr><th style="width:40px">On</th><th style="width:200px">Field name</th><th>Definition (what the AI looks for)</th><th style="width:60px"></th></tr></thead><tbody></tbody></table>
     <div class="toolbar" style="margin-top:12px">
       <button class="secondary" id="addFieldBtn">Add Field</button>
@@ -166,12 +166,12 @@
     <ol style="margin-left:20px">
       <li>Drop the semester's syllabi on the Upload tab and correct any guessed course or semester labels.</li>
       <li>Click Run Extraction and wait. Each syllabus takes roughly 20 to 60 seconds.</li>
-      <li>On Results, spot-check a sample of rows against the original syllabi. Yellow cells first. Check off each reviewed row.</li>
+      <li>On Results, spot-check a sample of rows against the original syllabi. Focus on yellow cells — these were flagged by the AI as uncertain or returned "not stated".</li>
       <li>Click Save Database File and put the file in the shared folder. This file is the repository. Load it back anytime, on any computer.</li>
       <li>Export CSV whenever you want to analyze in Excel, Airtable, or Power BI.</li>
     </ol>
     <p><strong>Multi-section syllabi:</strong> A syllabus covering several sections becomes one row per section. Rows from the same file share a Source value.</p>
-    <p><strong>Durable skills:</strong> Tagged against the eleven Essential Skills defined by the David Eccles School of Business, drawing on definitions from AACSB, NACE, USHE, and U of U frameworks. Each tag includes the evidence the AI found. Treat skills as inferences to verify, not facts.</p>
+    <p><strong>Skills tagging:</strong> Every syllabus is tagged against two frameworks simultaneously — the eleven Essential Skills defined by the David Eccles School of Business (synthesized from AACSB, NACE, USHE, and U of U definitions), and the eight NACE career readiness competencies. Use the Skills Matrix tab to view either framework. Treat all skill tags as AI inferences to verify, not established facts.</p>
     <p><strong>Adding fields later:</strong> Add the field on the Fields tab, then re-run older syllabi if you need the new field filled in historically.</p>
   </div>
 </div>
@@ -425,7 +425,7 @@ document.getElementById("runBtn").onclick = async () => {
           skills: Array.isArray(s.durable_skills) ? s.durable_skills.filter(k=>k&&k.skill) : [],
           nace_skills: Array.isArray(s.nace_skills) ? s.nace_skills.filter(k=>k&&k.skill) : [],
           flags: Array.isArray(s.confidence_flags) ? s.confidence_flags : [],
-          reviewed: false, extractedAt: new Date().toISOString()
+          extractedAt: new Date().toISOString()
         });
       }
       q.status = "done"; persist();
@@ -446,7 +446,7 @@ function rowMatches(r){
   if(sem && (r.semester+" "+r.year) !== sem) return false;
   if(sk && !r.skills.some(s=>s.skill===sk)) return false;
   if(q){
-    const blob = [r.source,r.course,r.title,r.section,r.semester,r.year,r.instructor,r.meeting_pattern,r.location,JSON.stringify(r.fields),JSON.stringify(r.skills)].join(" ").toLowerCase();
+    const blob = [r.source,r.course,r.title,r.section,r.semester,r.year,r.instructor,r.meeting_pattern,r.location,JSON.stringify(r.fields),JSON.stringify(r.skills),JSON.stringify(r.nace_skills||[])].join(" ").toLowerCase();
     if(!blob.includes(q)) return false;
   }
   return true;
@@ -459,7 +459,7 @@ function renderResults(){
   const semSel = document.getElementById("semFilter"); const cur = semSel.value;
   semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)}</option>`).join("");
   const skSel = document.getElementById("skillFilter"); const curSk = skSel.value;
-  skSel.innerHTML = '<option value="">All durable skills</option>' + NACE.map(s=>`<option${s===curSk?" selected":""}>${esc(s)}</option>`).join("");
+  skSel.innerHTML = '<option value="">All essential skills</option>' + NACE.map(s=>`<option${s===curSk?" selected":""}>${esc(s)}</option>`).join("");
   document.querySelector("#resultsTable thead").innerHTML =
     "<tr><th style='width:30px'><input type='checkbox' id='selAllChk' title='Select all'></th><th>Course</th>" +
     (show("Title") ? "<th>Title</th>" : "") +
@@ -467,7 +467,7 @@ function renderResults(){
     (show("Meeting") ? "<th>Meeting</th>" : "") +
     (show("Location") ? "<th>Location</th>" : "") +
     (show("Instructor") ? "<th>Instructor</th>" : "") +
-    (show("Durable Skills") ? "<th>Durable Skills</th>" : "") +
+    (show("Essential Skills") ? "<th>Essential Skills</th>" : "") +
     visNames.map(n=>"<th>"+esc(n)+"</th>").join("") +
     "</tr>";
   const tb = document.querySelector("#resultsTable tbody"); tb.innerHTML = "";
@@ -489,7 +489,7 @@ function renderResults(){
       (show("Meeting") ? `<td class="${sectionFlagged("meeting_pattern")?"flagged":""}">${esc(r.meeting_pattern||"not stated")}</td>` : "") +
       (show("Location") ? `<td class="${sectionFlagged("location")?"flagged":""}">${esc(r.location||"not stated")}</td>` : "") +
       (show("Instructor") ? `<td class="${sectionFlagged("instructor")?"flagged":""}">${esc(r.instructor)}</td>` : "") +
-      (show("Durable Skills") ? `<td>${r.skills.map(s=>`<span class="chip" title="${esc(s.evidence)}">${esc(s.skill)}</span>`).join("")}</td>` : "") +
+      (show("Essential Skills") ? `<td>${r.skills.map(s=>`<span class="chip" title="${esc(s.evidence)}">${esc(s.skill)}</span>`).join("")}</td>` : "") +
       visNames.map(cell).join("");
     tr.querySelector('[data-a="sel"]').onclick = e => { e.stopPropagation(); r._sel = e.target.checked; };
     tr.onclick = () => openDetail(r);
@@ -503,7 +503,7 @@ function renderResults(){
 ["searchBox","semFilter","skillFilter"].forEach(id => document.getElementById(id).oninput = renderResults);
 
 function renderColPanel(){
-  const toggleable = ["Title","Meeting","Location","Instructor","Durable Skills",...activeFieldNames()];
+  const toggleable = ["Title","Meeting","Location","Instructor","Essential Skills",...activeFieldNames()];
   const panel = document.getElementById("colPanel");
   panel.innerHTML = '<span class="small" style="margin-right:12px;font-weight:600">Show columns:</span>' +
     toggleable.map(name=>`<label style="margin-right:14px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" ${!hiddenCols.has(name)?"checked":""} data-col="${esc(name)}"> ${esc(name)}</label>`).join("");
@@ -519,7 +519,7 @@ document.getElementById("colToggleBtn").onclick = () => {
 };
 document.getElementById("deleteSelBtn").onclick = () => {
   const n = S.rows.filter(r=>r._sel).length;
-  if(!n) return alert("Select rows first (right-hand checkbox).");
+  if(!n) return alert("Select rows first using the checkboxes on the left.");
   if(confirm("Delete "+n+" row(s)? The original syllabi are unaffected.")){ S.rows = S.rows.filter(r=>!r._sel); persist(); renderResults(); }
 };
 
@@ -581,7 +581,7 @@ document.getElementById("reextractFileInput").onchange = async (e) => {
           fields: s.fields||{},
           skills: Array.isArray(s.durable_skills)?s.durable_skills.filter(k=>k&&k.skill):[],
           flags: Array.isArray(s.confidence_flags)?s.confidence_flags:[],
-          reviewed: false, extractedAt: new Date().toISOString()
+          extractedAt: new Date().toISOString()
         });
       }
       persist();
