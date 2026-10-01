@@ -45,6 +45,21 @@
   .small { font-size:12px; color:#666; }
   progress { width:100%; height:14px; }
   .btn-active { background:var(--crimson); color:#fff; border-color:var(--crimson); }
+  .stat-card { background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px; text-align:center; }
+  .stat-card .num { font-size:28px; font-weight:700; color:var(--crimson); }
+  .stat-card .lbl { font-size:12px; color:#666; margin-top:4px; }
+  .heat-0 { background:#fff; }
+  .heat-1 { background:#e8f5e9; }
+  .heat-2 { background:#a5d6a7; }
+  .heat-3 { background:#4caf50; color:#fff; }
+  .heat-4 { background:#1a7f37; color:#fff; }
+  .gap-cell { background:#fff3cd !important; color:#7a6000; font-weight:600; }
+  #covTable td, #covTable th, #dashTable td, #dashTable th { font-size:12px; padding:5px 8px; }
+  #covTable th, #dashTable th { font-size:11px; }
+  .intensity-P { color:#1a7f37; font-size:14px; cursor:default; }
+  .intensity-S { color:#4caf50; font-size:14px; cursor:default; }
+  .intensity-I { color:#a5d6a7; font-size:14px; cursor:default; }
+  .bloom-badge { display:inline-block; background:#e8eaf6; color:#3949ab; border-radius:3px; padding:1px 6px; font-size:11px; margin:1px; }
 </style>
 </head>
 <body>
@@ -56,6 +71,8 @@
   <button data-tab="upload" class="active">1. Upload & Extract</button>
   <button data-tab="results">2. Results</button>
   <button data-tab="skills">Skills Matrix</button>
+  <button data-tab="dashboard">Dashboard</button>
+  <button data-tab="coverage">Coverage Analysis</button>
   <button data-tab="fields">Fields</button>
   <button data-tab="settings">Settings</button>
   <button data-tab="help">Help</button>
@@ -93,6 +110,8 @@
     <div class="toolbar">
       <input type="text" id="searchBox" placeholder="Search all fields...">
       <select id="semFilter"><option value="">All semesters</option></select>
+      <select id="deptFilter"><option value="">All departments</option></select>
+      <select id="levelFilter"><option value="">All levels</option></select>
       <select id="skillFilter"><option value="">All essential skills</option></select>
       <span class="small" id="rowCount"></span>
     </div>
@@ -122,13 +141,46 @@
       <button class="secondary btn-active" id="essBtn">Essential Skills</button>
       <button class="secondary" id="naceBtn">NACE Competencies</button>
       <select id="skillsSemFilter"><option value="">All semesters</option></select>
+      <select id="skillsDeptFilter"><option value="">All departments</option></select>
       <span class="small" id="skillsCount"></span>
       <button class="secondary" id="matrixCsvBtn" style="margin-left:auto">Export Matrix CSV</button>
     </div>
-    <p class="small" style="margin-bottom:8px">Each row is a unique course number. A checkmark means at least one extracted syllabus for that course cited evidence for that competency. Hover a checkmark to read the AI's evidence. The totals row counts how many courses have evidence for each skill.</p>
+    <p class="small" style="margin-bottom:8px">Each row is a unique course number. Color indicates intensity: <span style="color:#1a7f37;font-weight:600">■ Primary</span> (core, multiple graded assessments), <span style="color:#4caf50;font-weight:600">■ Secondary</span> (at least one graded component), <span style="color:#a5d6a7;font-weight:600">■ Incidental</span> (present but not a graded focus). Hover a cell to read the AI's evidence. The totals row counts courses with each skill at any intensity.</p>
     <div style="overflow:auto; max-height:65vh">
       <table id="skillsTable"><thead></thead><tbody></tbody></table>
     </div>
+  </div>
+</div>
+
+<div class="tab" id="tab-dashboard">
+  <div class="card" id="dashStat" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:0"></div>
+  <div class="card" style="margin-top:14px">
+    <div class="toolbar" style="margin-bottom:10px">
+      <h2 style="flex:1">Skill Coverage Heatmap</h2>
+      <select id="dashSkillView"><option value="essential">Essential Skills</option><option value="nace">NACE Competencies</option></select>
+      <select id="dashSemFilter"><option value="">All semesters</option></select>
+    </div>
+    <p class="small" style="margin-bottom:8px">Rows = departments. Cells = % of unique courses in that department with evidence for each skill (at any intensity). Darker green = higher coverage.</p>
+    <div style="overflow:auto;max-height:60vh"><table id="dashTable"><thead></thead><tbody></tbody></table></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h2 style="margin-bottom:8px">Bloom's Taxonomy Distribution</h2>
+    <p class="small" style="margin-bottom:8px">How frequently each cognitive level appears across all extracted courses.</p>
+    <div id="bloomsBar" style="display:flex;gap:8px;align-items:flex-end;height:120px;padding:0 4px"></div>
+    <div id="bloomsLabels" style="display:flex;gap:8px;margin-top:4px;font-size:11px;color:#555"></div>
+  </div>
+</div>
+
+<div class="tab" id="tab-coverage">
+  <div class="card">
+    <div class="toolbar" style="margin-bottom:10px">
+      <h2 style="flex:1">Coverage Gap Analysis</h2>
+      <select id="covSkillView"><option value="essential">Essential Skills</option><option value="nace">NACE Competencies</option></select>
+      <select id="covSemFilter"><option value="">All semesters</option></select>
+      <label style="font-size:13px;white-space:nowrap"><input type="range" id="gapThreshold" min="0" max="100" value="50" style="width:90px"> Gap threshold: <span id="gapThreshVal">50</span>%</label>
+    </div>
+    <p class="small" style="margin-bottom:8px">Skills below the threshold are highlighted as coverage gaps. Each cell shows the number of unique courses with evidence / total courses in that department.</p>
+    <div style="overflow:auto;max-height:65vh"><table id="covTable"><thead></thead><tbody></tbody></table></div>
   </div>
 </div>
 
@@ -177,7 +229,9 @@
       <li>Export CSV whenever you want to analyze in Excel, Airtable, or Power BI.</li>
     </ol>
     <p><strong>Multi-section syllabi:</strong> A syllabus covering several sections becomes one row per section. Rows from the same file share a Source value.</p>
-    <p><strong>Skills tagging:</strong> Every syllabus is tagged against two frameworks simultaneously — the eleven Essential Skills defined by the David Eccles School of Business (synthesized from AACSB, NACE, USHE, and U of U definitions), and the eight NACE career readiness competencies. Use the Skills Matrix tab to view either framework. Treat all skill tags as AI inferences to verify, not established facts.</p>
+    <p><strong>Skills tagging:</strong> Every syllabus is tagged against two frameworks simultaneously — the eleven Essential Skills defined by the David Eccles School of Business (synthesized from AACSB, NACE, USHE, and U of U definitions), and the eight NACE career readiness competencies. Each skill is assigned an intensity: <strong>Primary</strong> (core to the course with multiple graded assessments), <strong>Secondary</strong> (at least one graded component), or <strong>Incidental</strong> (present but not a graded focus). Use the Skills Matrix tab to view either framework. Treat all skill tags as AI inferences to verify, not established facts.</p>
+    <p><strong>Bloom's Taxonomy:</strong> The AI identifies which of the six cognitive levels (Remember → Create) are present in each course's learning outcomes and assessments. View the distribution on the Dashboard tab. This helps the school assess the cognitive depth of its curriculum.</p>
+    <p><strong>Dashboard & Coverage Analysis:</strong> The Dashboard shows aggregate stats, a skill coverage heatmap by department, and a Bloom's distribution chart. The Coverage Analysis tab highlights departments and skills where coverage falls below a configurable threshold — use it to identify curriculum gaps.</p>
     <p><strong>Adding fields later:</strong> Add the field on the Fields tab, then re-run older syllabi if you need the new field filled in historically.</p>
   </div>
 </div>
@@ -212,6 +266,14 @@ const SKILL_DEFS = {
   "Career Readiness": "The ability to demonstrate and develop the competencies needed to navigate and advance in the workplace. Look for career development content, resume or interview preparation, workplace simulations, industry mentorship, networking activities, or outcomes explicitly framed in terms of professional or career readiness. (U of U/USHE Essential Skills; AACSB: Application of Knowledge in Professional Contexts; NACE: Career and Self-Development)"
 };
 const NACE8 = ["Career & Self-Development","Communication","Critical Thinking","Equity & Inclusion","Leadership","Professionalism","Teamwork","Technology"];
+const BLOOM_LEVELS = ["Remember","Understand","Apply","Analyze","Evaluate","Create"];
+function parseCourse(course){
+  const m = (course||"").trim().match(/^([A-Za-z]+)\s*(\d)/);
+  const dept = m ? m[1].toUpperCase() : "Other";
+  const levelDigit = m ? m[2] : "0";
+  const level = levelDigit !== "0" ? (levelDigit + "000-level") : "Other";
+  return {dept, level};
+}
 const NACE8_DEFS = "Career & Self-Development: proactively develop oneself and one's career through continual personal and professional learning, awareness of strengths and weaknesses, and networking; Communication: clearly and effectively exchange information, ideas, facts, and perspectives with persons inside and outside an organization; Critical Thinking: identify and respond to needs based on logical analysis of relevant information to make sound decisions; Equity & Inclusion: demonstrate awareness, attitude, knowledge, and skills to equitably engage and include people from diverse local and global cultures; Leadership: recognize and capitalize on personal and team strengths to achieve organizational goals; Professionalism: understand and demonstrate effective work habits and act in the interest of the larger community and workplace; Teamwork: build and maintain collaborative relationships to work effectively toward common goals while appreciating diverse viewpoints; Technology: understand and leverage technologies ethically to enhance efficiencies and accomplish goals";
 const DEFAULT_FIELDS = [
  {on:true,name:"Learning Outcomes",def:"The stated learning outcomes, objectives, or goals of the course. List each one. They may appear under headings like Course Objectives, Course Outcomes, or inside prose such as 'by the end of this course students will be able to'."},
@@ -243,6 +305,14 @@ function migrateRows(rows){
     if(r.meeting_pattern===undefined) r.meeting_pattern="not stated";
     if(r.location===undefined) r.location="not stated";
     if(r.nace_skills===undefined) r.nace_skills=[];
+    if(r.blooms===undefined) r.blooms=[];
+    if(r.dept===undefined || r.level===undefined){
+      const p = parseCourse(r.course); r.dept = p.dept; r.level = p.level;
+    }
+    // Normalize intensity field on legacy skill entries
+    for(const arr of [r.skills, r.nace_skills]){
+      for(const s of (arr||[])) if(!s.intensity) s.intensity = "Secondary";
+    }
   }
   return rows;
 }
@@ -265,6 +335,8 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   b.classList.add("active"); document.getElementById("tab-"+b.dataset.tab).classList.add("active");
   if(b.dataset.tab==="results") renderResults();
   if(b.dataset.tab==="skills") renderSkills();
+  if(b.dataset.tab==="dashboard") renderDashboard();
+  if(b.dataset.tab==="coverage") renderCoverage();
   if(b.dataset.tab==="fields") renderFields();
 });
 
@@ -346,8 +418,9 @@ Also extract these standard items:
 - section: the section number (e.g. "009"). If the syllabus covers multiple sections, output ONE object per section. If no section number is stated, output one object with section "not stated".
 - meeting_pattern: the days and times the section meets (e.g. "MWF 9:10–10:00 AM", "TR 2:00–3:20 PM"). SECTION-SPECIFIC — will differ across sections.
 - location: the classroom, building, or delivery mode for this section (e.g. "SFEBB 2110", "online", "hybrid"). SECTION-SPECIFIC.
-- durable_skills: assess which of these Essential Skills the course develops. Only tag a skill when the syllabus contains concrete evidence (an activity, assignment, outcome, or policy). For each tagged skill, briefly state the evidence found. Do not tag skills without evidence. Shared across sections. The skills and their definitions are:\n${NACE.map(s=>`  - ${s}: ${SKILL_DEFS[s]}`).join("\n")}
-- nace_skills: separately, also assess which of these eight NACE career readiness competencies the course develops: ${NACE8_DEFS}. Apply the same evidence rules — only tag with concrete evidence, briefly state the evidence. Shared across sections.
+- durable_skills: assess which of these Essential Skills the course develops. Only tag a skill when the syllabus contains concrete evidence (an activity, assignment, outcome, or policy). For each tagged skill, include: (1) intensity — "Primary" if the skill is central with multiple graded assessments directly measuring it; "Secondary" if at least one graded component develops it; "Incidental" if it appears but is not a graded focus; (2) evidence — briefly state the specific evidence found. Do not tag skills without evidence. Shared across sections. The skills and their definitions are:\n${NACE.map(s=>`  - ${s}: ${SKILL_DEFS[s]}`).join("\n")}
+- nace_skills: separately, also assess which of these eight NACE career readiness competencies the course develops: ${NACE8_DEFS}. Apply the same rules — only tag with concrete evidence, include intensity and evidence. Shared across sections.
+- blooms_levels: identify which of these six Bloom's Taxonomy cognitive levels are explicitly developed in this course, based on learning outcomes and assessments: Remember, Understand, Apply, Analyze, Evaluate, Create. Return only the levels that are clearly present. Shared across sections.
 - confidence_flags: list the names of any fields (custom or standard) where you were uncertain, the document was ambiguous, or you had to interpret heavily.
 
 Rules:
@@ -357,7 +430,7 @@ Rules:
 - Base everything strictly on the document.
 
 Return ONLY valid JSON, no markdown fences, in this exact shape:
-{"sections":[{"course_number":"","course_title":"","section":"","semester":"","year":"","instructor":"","meeting_pattern":"","location":"","fields":{${active.map(f=>`"${f.name}":""`).join(",")}},"durable_skills":[{"skill":"","evidence":""}],"nace_skills":[{"skill":"","evidence":""}],"confidence_flags":[]}]}`;
+{"sections":[{"course_number":"","course_title":"","section":"","semester":"","year":"","instructor":"","meeting_pattern":"","location":"","fields":{${active.map(f=>`"${f.name}":""`).join(",")}},"durable_skills":[{"skill":"","intensity":"Primary|Secondary|Incidental","evidence":""}],"nace_skills":[{"skill":"","intensity":"Primary|Secondary|Incidental","evidence":""}],"blooms_levels":[],"confidence_flags":[]}]}`;
 }
 
 function buildHint(q){
@@ -421,9 +494,11 @@ document.getElementById("runBtn").onclick = async () => {
       const parsed = parseResult(await callClaude(block, buildSystemPrompt(), buildHint(q)));
       const secs = Array.isArray(parsed.sections)&&parsed.sections.length ? parsed.sections : [parsed];
       for(const s of secs){
+        const course = s.course_number || q.course || "not stated";
+        const {dept, level} = parseCourse(course);
         S.rows.push({
           id: uid(), source: q.name,
-          course: s.course_number || q.course || "not stated",
+          course, dept, level,
           title: s.course_title || "not stated",
           section: s.section || "not stated",
           semester: s.semester || q.semester || "not stated",
@@ -434,6 +509,7 @@ document.getElementById("runBtn").onclick = async () => {
           fields: s.fields || {},
           skills: Array.isArray(s.durable_skills) ? s.durable_skills.filter(k=>k&&k.skill) : [],
           nace_skills: Array.isArray(s.nace_skills) ? s.nace_skills.filter(k=>k&&k.skill) : [],
+          blooms: Array.isArray(s.blooms_levels) ? s.blooms_levels.filter(b=>BLOOM_LEVELS.includes(b)) : [],
           flags: Array.isArray(s.confidence_flags) ? s.confidence_flags : [],
           extractedAt: new Date().toISOString()
         });
@@ -457,8 +533,12 @@ function activeFieldNames(){ return S.fields.filter(f=>f.on).map(f=>f.name); }
 function rowMatches(r){
   const q = document.getElementById("searchBox").value.toLowerCase();
   const sem = document.getElementById("semFilter").value;
+  const dept = document.getElementById("deptFilter").value;
+  const level = document.getElementById("levelFilter").value;
   const sk = document.getElementById("skillFilter").value;
   if(sem && (r.semester+" "+r.year) !== sem) return false;
+  if(dept && r.dept !== dept) return false;
+  if(level && r.level !== level) return false;
   if(sk && !r.skills.some(s=>s.skill===sk)) return false;
   if(q){
     const blob = [r.source,r.course,r.title,r.section,r.semester,r.year,r.instructor,r.meeting_pattern,r.location,JSON.stringify(r.fields),JSON.stringify(r.skills),JSON.stringify(r.nace_skills||[])].join(" ").toLowerCase();
@@ -474,6 +554,12 @@ function renderResults(){
   const semSet = [...semCounts.keys()].sort();
   const semSel = document.getElementById("semFilter"); const cur = semSel.value;
   semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)} (${semCounts.get(s)})</option>`).join("");
+  const deptSet = [...new Set(S.rows.map(r=>r.dept||parseCourse(r.course).dept))].sort();
+  const deptSel = document.getElementById("deptFilter"); const curDept = deptSel.value;
+  deptSel.innerHTML = '<option value="">All departments</option>' + deptSet.map(d=>`<option${d===curDept?" selected":""}>${esc(d)}</option>`).join("");
+  const levelSet = [...new Set(S.rows.map(r=>r.level||parseCourse(r.course).level))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const levelSel = document.getElementById("levelFilter"); const curLevel = levelSel.value;
+  levelSel.innerHTML = '<option value="">All levels</option>' + levelSet.map(l=>`<option${l===curLevel?" selected":""}>${esc(l)}</option>`).join("");
   const skSel = document.getElementById("skillFilter"); const curSk = skSel.value;
   skSel.innerHTML = '<option value="">All essential skills</option>' + NACE.map(s=>`<option${s===curSk?" selected":""}>${esc(s)}</option>`).join("");
   document.querySelector("#resultsTable thead").innerHTML =
@@ -522,7 +608,7 @@ function renderResults(){
     shown.forEach(r => r._sel = e.target.checked);
   };
 }
-["searchBox","semFilter","skillFilter"].forEach(id => document.getElementById(id).oninput = renderResults);
+["searchBox","semFilter","deptFilter","levelFilter","skillFilter"].forEach(id => document.getElementById(id).oninput = renderResults);
 
 function renderColPanel(){
   const toggleable = ["Title","Meeting","Location","Instructor","Essential Skills",...activeFieldNames()];
@@ -589,9 +675,11 @@ document.getElementById("reextractFileInput").onchange = async (e) => {
       const secs = Array.isArray(parsed.sections)&&parsed.sections.length ? parsed.sections : [parsed];
       S.rows = S.rows.filter(r=>r.source!==src);
       for(const s of secs){
+        const course = s.course_number||q.course||"not stated";
+        const {dept, level} = parseCourse(course);
         S.rows.push({
           id:uid(), source:src,
-          course: s.course_number||q.course||"not stated",
+          course, dept, level,
           title: s.course_title||"not stated",
           section: s.section||"not stated",
           semester: s.semester||q.semester||"not stated",
@@ -599,9 +687,10 @@ document.getElementById("reextractFileInput").onchange = async (e) => {
           instructor: s.instructor||"not stated",
           meeting_pattern: s.meeting_pattern||"not stated",
           location: s.location||"not stated",
-          final_exam: s.final_exam||"not stated",
           fields: s.fields||{},
           skills: Array.isArray(s.durable_skills)?s.durable_skills.filter(k=>k&&k.skill):[],
+          nace_skills: Array.isArray(s.nace_skills)?s.nace_skills.filter(k=>k&&k.skill):[],
+          blooms: Array.isArray(s.blooms_levels)?s.blooms_levels.filter(b=>BLOOM_LEVELS.includes(b)):[],
           flags: Array.isArray(s.confidence_flags)?s.confidence_flags:[],
           extractedAt: new Date().toISOString()
         });
@@ -630,8 +719,9 @@ function openDetail(r){
   for(const n of names){
     h += `<label>${esc(n)}${r.flags.includes(n)?" (AI flagged uncertain)":""}</label><textarea data-field="${esc(n)}">${esc(r.fields[n]==null?"not stated":r.fields[n])}</textarea>`;
   }
-  h += `<label>Essential Skills (one per line: Skill | evidence)</label><textarea data-skills>${esc(r.skills.map(s=>s.skill+" | "+s.evidence).join("\n"))}</textarea>`;
-  h += `<label>NACE Competencies (one per line: Skill | evidence)</label><textarea data-nace-skills>${esc((r.nace_skills||[]).map(s=>s.skill+" | "+s.evidence).join("\n"))}</textarea>`;
+  if((r.blooms||[]).length) h += `<label>Bloom's Taxonomy Levels</label><div style="margin-bottom:8px">${r.blooms.map(b=>`<span class="bloom-badge">${esc(b)}</span>`).join("")}</div>`;
+  h += `<label>Essential Skills (one per line: Skill | Intensity | evidence)</label><textarea data-skills>${esc(r.skills.map(s=>s.skill+" | "+(s.intensity||"Secondary")+" | "+s.evidence).join("\n"))}</textarea>`;
+  h += `<label>NACE Competencies (one per line: Skill | Intensity | evidence)</label><textarea data-nace-skills>${esc((r.nace_skills||[]).map(s=>s.skill+" | "+(s.intensity||"Secondary")+" | "+s.evidence).join("\n"))}</textarea>`;
   document.getElementById("detailBody").innerHTML = h;
   document.getElementById("detailModal").style.display = "block";
 }
@@ -640,7 +730,7 @@ document.getElementById("detailSave").onclick = () => {
   const box = document.getElementById("detailBody");
   box.querySelectorAll("[data-core]").forEach(i => editing[i.dataset.core] = i.value.trim());
   box.querySelectorAll("[data-field]").forEach(t => editing.fields[t.dataset.field] = t.value.trim());
-  const parseSkills = ta => ta.value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const [sk,...ev]=l.split("|"); return {skill:sk.trim(), evidence:ev.join("|").trim()}; });
+  const parseSkills = ta => ta.value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const parts=l.split("|"); const sk=parts[0].trim(); const maybeIntensity=parts[1]&&parts[1].trim(); const isIntensity=["Primary","Secondary","Incidental"].includes(maybeIntensity); const intensity=isIntensity?maybeIntensity:"Secondary"; const ev=(isIntensity?parts.slice(2):parts.slice(1)).join("|").trim(); return {skill:sk, intensity, evidence:ev}; });
   editing.skills = parseSkills(box.querySelector("[data-skills]"));
   editing.nace_skills = parseSkills(box.querySelector("[data-nace-skills]"));
   persist(); renderResults();
@@ -668,14 +758,18 @@ document.getElementById("detailReextractInput").onchange = async e => {
     const secs = Array.isArray(parsed.sections)&&parsed.sections.length ? parsed.sections : [parsed];
     S.rows = S.rows.filter(r=>r.source!==src);
     for(const s of secs){
+      const course = s.course_number||q.course||"not stated";
+      const {dept, level} = parseCourse(course);
       S.rows.push({ id:uid(), source:src,
-        course:s.course_number||q.course||"not stated", title:s.course_title||"not stated",
+        course, dept, level,
+        title:s.course_title||"not stated",
         section:s.section||"not stated", semester:s.semester||q.semester||"not stated",
         year:String(s.year||q.year||"not stated"), instructor:s.instructor||"not stated",
         meeting_pattern:s.meeting_pattern||"not stated", location:s.location||"not stated",
         fields:s.fields||{},
         skills:Array.isArray(s.durable_skills)?s.durable_skills.filter(k=>k&&k.skill):[],
         nace_skills:Array.isArray(s.nace_skills)?s.nace_skills.filter(k=>k&&k.skill):[],
+        blooms:Array.isArray(s.blooms_levels)?s.blooms_levels.filter(b=>BLOOM_LEVELS.includes(b)):[],
         flags:Array.isArray(s.confidence_flags)?s.confidence_flags:[], extractedAt:new Date().toISOString() });
     }
     persist();
@@ -688,6 +782,10 @@ document.getElementById("detailReextractInput").onchange = async e => {
 
 /* ---------- skills matrix ---------- */
 let skillsView = 'essential';
+const INTENSITY_RANK = {"Primary":3,"Secondary":2,"Incidental":1};
+const INTENSITY_COLOR = {"Primary":"intensity-P","Secondary":"intensity-S","Incidental":"intensity-I"};
+const INTENSITY_SYMBOL = {"Primary":"●","Secondary":"●","Incidental":"○"};
+
 function renderSkills(){
   const skillList = skillsView === 'essential' ? NACE : NACE8;
   const rowField  = skillsView === 'essential' ? 'skills' : 'nace_skills';
@@ -699,39 +797,59 @@ function renderSkills(){
   const semSet = [...semCounts2.keys()].sort();
   const cur = semSel.value;
   semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)} (${semCounts2.get(s)})</option>`).join("");
-  const sem = semSel.value;
-  const rows = sem ? S.rows.filter(r=>(r.semester+" "+r.year)===sem) : S.rows;
 
+  const deptSet = [...new Set(S.rows.map(r=>r.dept||parseCourse(r.course).dept))].sort();
+  const deptSel = document.getElementById("skillsDeptFilter"); const curDept = deptSel.value;
+  deptSel.innerHTML = '<option value="">All departments</option>' + deptSet.map(d=>`<option${d===curDept?" selected":""}>${esc(d)}</option>`).join("");
+
+  const sem = semSel.value;
+  const deptF = deptSel.value;
+  let rows = sem ? S.rows.filter(r=>(r.semester+" "+r.year)===sem) : S.rows;
+  if(deptF) rows = rows.filter(r=>(r.dept||parseCourse(r.course).dept)===deptF);
+
+  // courseMap: course → skill → {intensity, evidence[]}
   const courseMap = new Map();
   for(const r of rows){
     if(!courseMap.has(r.course)) courseMap.set(r.course, new Map());
     const sm = courseMap.get(r.course);
     for(const s of (r[rowField]||[])){
-      if(!sm.has(s.skill)) sm.set(s.skill, []);
-      if(s.evidence) sm.get(s.skill).push(s.evidence);
+      if(!s.skill) continue;
+      const cur = sm.get(s.skill);
+      const rank = INTENSITY_RANK[s.intensity]||1;
+      const curRank = cur ? (INTENSITY_RANK[cur.intensity]||1) : 0;
+      if(!cur || rank > curRank){
+        sm.set(s.skill, { intensity: s.intensity||"Secondary", evidence: [] });
+      }
+      if(s.evidence) sm.get(s.skill).evidence.push(s.evidence);
     }
   }
   const courses = [...courseMap.keys()].sort();
   document.getElementById("skillsCount").textContent = courses.length+" course(s)";
 
   const tbl = document.getElementById("skillsTable");
-  tbl.querySelector("thead").innerHTML = "<tr><th>Course</th>"+skillList.map(s=>`<th style="width:100px;text-align:center;font-size:12px">${esc(s)}</th>`).join("")+"</tr>";
+  tbl.querySelector("thead").innerHTML = "<tr><th>Course</th>"+skillList.map(s=>`<th style="width:90px;text-align:center;font-size:11px">${esc(s)}</th>`).join("")+"</tr>";
   const tb = tbl.querySelector("tbody"); tb.innerHTML = "";
   for(const course of courses){
     const sm = courseMap.get(course);
     const tr = document.createElement("tr");
     let h = `<td>${esc(course)}</td>`;
     for(const skill of skillList){
-      const ev = sm.get(skill);
-      h += ev
-        ? `<td style="text-align:center"><span title="${esc([...new Set(ev)].join(" | "))}" style="color:#1a7f37;font-size:16px;cursor:default">✓</span></td>`
-        : `<td></td>`;
+      const entry = sm.get(skill);
+      if(entry){
+        const cls = INTENSITY_COLOR[entry.intensity]||"intensity-S";
+        const sym = INTENSITY_SYMBOL[entry.intensity]||"●";
+        const evText = [...new Set(entry.evidence)].join(" | ");
+        const tip = entry.intensity + (evText ? ": "+evText : "");
+        h += `<td style="text-align:center"><span class="${cls}" title="${esc(tip)}">${sym}</span></td>`;
+      } else {
+        h += `<td></td>`;
+      }
     }
     tr.innerHTML = h; tb.appendChild(tr);
   }
   if(!courses.length){
     const empty = document.createElement("tr");
-    empty.innerHTML = `<td colspan="100" style="text-align:center;padding:32px;color:#888">${S.rows.length ? "No rows match the selected semester." : "No syllabi extracted yet — extract syllabi to populate the skills matrix."}</td>`;
+    empty.innerHTML = `<td colspan="100" style="text-align:center;padding:32px;color:#888">${S.rows.length ? "No rows match the selected filters." : "No syllabi extracted yet — extract syllabi to populate the skills matrix."}</td>`;
     tb.appendChild(empty);
   } else {
     const totals = document.createElement("tr");
@@ -741,6 +859,7 @@ function renderSkills(){
   }
 }
 document.getElementById("skillsSemFilter").oninput = renderSkills;
+document.getElementById("skillsDeptFilter").oninput = renderSkills;
 document.getElementById("essBtn").onclick  = () => { skillsView = 'essential'; renderSkills(); };
 document.getElementById("naceBtn").onclick = () => { skillsView = 'nace';      renderSkills(); };
 
@@ -783,38 +902,44 @@ document.getElementById("dbFileInput").onchange = async e => {
     const merge = S.rows.length && confirm("OK = MERGE the file's rows into what's already loaded.\nCancel = REPLACE everything with the file.");
     if(merge){ const ids = new Set(S.rows.map(r=>r.id)); migrateRows(d.rows).forEach(r=>{ if(!ids.has(r.id)) S.rows.push(r); }); }
     else { S.rows = migrateRows(d.rows); S.fields = migrateFields(d.fields) || S.fields; }
-    persist(); renderResults(); renderFields();
+    persist(); renderResults(); renderFields(); renderSkills(); renderDashboard(); renderCoverage();
     alert("Loaded. "+S.rows.length+" rows in the database.");
   }catch(err){ alert("Could not load file: "+err.message); }
   e.target.value = "";
 };
 document.getElementById("csvBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Evidence","NACE Competencies","NACE Evidence","AI Uncertainty Flags"];
+  const head = ["Source File","Department","Level","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Intensity","Essential Skills Evidence","NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags"];
   const csvCell = v => '"' + String(v==null?"":v).replace(/"/g,'""') + '"';
   const lines = [head.map(csvCell).join(",")];
   for(const r of S.rows.filter(rowMatches)){
-    lines.push([r.source,r.course,r.title||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
+    lines.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
       ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
       r.skills.map(s=>s.skill).join("; "),
+      r.skills.map(s=>s.intensity||"Secondary").join("; "),
       r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
       (r.nace_skills||[]).map(s=>s.skill).join("; "),
+      (r.nace_skills||[]).map(s=>s.intensity||"Secondary").join("; "),
       (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
+      (r.blooms||[]).join("; "),
       r.flags.join("; ")].map(csvCell).join(","));
   }
   download("syllabus-export-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
 };
 document.getElementById("xlsxBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Evidence","NACE Competencies","NACE Evidence","AI Uncertainty Flags"];
+  const head = ["Source File","Department","Level","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Intensity","Essential Skills Evidence","NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags"];
   const data = [head];
   for(const r of S.rows.filter(rowMatches)){
-    data.push([r.source,r.course,r.title||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
+    data.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
       ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
       r.skills.map(s=>s.skill).join("; "),
+      r.skills.map(s=>s.intensity||"Secondary").join("; "),
       r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
       (r.nace_skills||[]).map(s=>s.skill).join("; "),
+      (r.nace_skills||[]).map(s=>s.intensity||"Secondary").join("; "),
       (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
+      (r.blooms||[]).join("; "),
       r.flags.join("; ")]);
   }
   const ws = XLSX.utils.aoa_to_sheet(data);
@@ -835,15 +960,176 @@ document.getElementById("matrixCsvBtn").onclick = () => {
   for(const r of rows){
     if(!courseMap.has(r.course)) courseMap.set(r.course, new Map());
     const sm = courseMap.get(r.course);
-    for(const s of (r[rowField]||[])){ if(!sm.has(s.skill)) sm.set(s.skill,[]); if(s.evidence) sm.get(s.skill).push(s.evidence); }
+    for(const s of (r[rowField]||[])){
+      if(!s.skill) continue;
+      const cur = sm.get(s.skill);
+      const rank = INTENSITY_RANK[s.intensity]||1;
+      const curRank = cur ? (INTENSITY_RANK[cur.intensity]||1) : 0;
+      if(!cur || rank > curRank) sm.set(s.skill, {intensity:s.intensity||"Secondary", evidence:[]});
+      if(s.evidence) sm.get(s.skill).evidence.push(s.evidence);
+    }
   }
   const courses = [...courseMap.keys()].sort();
   const csvCell = v => '"'+String(v==null?"":v).replace(/"/g,'""')+'"';
   const lines = [["Course",...skillList].map(csvCell).join(",")];
-  for(const c of courses) lines.push([c,...skillList.map(sk=>courseMap.get(c).has(sk)?"Yes":"No")].map(csvCell).join(","));
+  for(const c of courses) lines.push([c,...skillList.map(sk=>{ const e=courseMap.get(c).get(sk); return e?e.intensity:"No"; })].map(csvCell).join(","));
   lines.push(["Courses with skill",...skillList.map(sk=>courses.filter(c=>courseMap.get(c).has(sk)).length)].map(csvCell).join(","));
   download("skills-matrix-"+label+"-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
 };
+
+/* ---------- dashboard ---------- */
+function renderDashboard(){
+  const skillView = document.getElementById("dashSkillView").value;
+  const skillList = skillView === 'essential' ? NACE : NACE8;
+  const rowField  = skillView === 'essential' ? 'skills' : 'nace_skills';
+
+  const semSel = document.getElementById("dashSemFilter");
+  const semSet = [...new Set(S.rows.map(r=>r.semester+" "+r.year))].sort();
+  const cur = semSel.value;
+  semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)}</option>`).join("");
+  const sem = semSel.value;
+  const rows = sem ? S.rows.filter(r=>(r.semester+" "+r.year)===sem) : S.rows;
+
+  const uniqueCourses = new Set(rows.map(r=>r.course));
+  const uniqueDepts   = new Set(rows.map(r=>r.dept||parseCourse(r.course).dept));
+  const uniqueSems    = new Set(rows.map(r=>r.semester+" "+r.year));
+  const avgSkills = uniqueCourses.size
+    ? (rows.reduce((sum,r)=>{
+        const courseSkills = new Set((r[rowField]||[]).map(s=>s.skill));
+        return sum + courseSkills.size;
+      },0) / uniqueCourses.size).toFixed(1)
+    : "—";
+  const coursesWithAnySkill = new Set(rows.filter(r=>(r[rowField]||[]).length>0).map(r=>r.course)).size;
+  const pctCoverage = uniqueCourses.size ? Math.round(100*coursesWithAnySkill/uniqueCourses.size) : 0;
+
+  document.getElementById("dashStat").innerHTML = [
+    ["Unique Courses", uniqueCourses.size],
+    ["Total Sections", rows.length],
+    ["Departments", uniqueDepts.size],
+    ["Semesters", uniqueSems.size],
+    ["Skill Coverage", pctCoverage+"%"],
+    ["Avg Skills / Course", avgSkills],
+  ].map(([lbl,num])=>`<div class="stat-card"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`).join("");
+
+  // Heatmap: dept × skill
+  const depts = [...uniqueDepts].sort();
+  const deptCourseMaps = {};
+  for(const r of rows){
+    const d = r.dept||parseCourse(r.course).dept;
+    if(!deptCourseMaps[d]) deptCourseMaps[d] = new Map();
+    const cm = deptCourseMaps[d];
+    if(!cm.has(r.course)) cm.set(r.course, new Set());
+    for(const s of (r[rowField]||[])) cm.get(r.course).add(s.skill);
+  }
+
+  const tbl = document.getElementById("dashTable");
+  tbl.querySelector("thead").innerHTML = "<tr><th>Dept</th><th>Courses</th>"+skillList.map(s=>`<th style="text-align:center;font-size:10px">${esc(s)}</th>`).join("")+"</tr>";
+  const tb = tbl.querySelector("tbody"); tb.innerHTML = "";
+  for(const d of depts){
+    const cm = deptCourseMaps[d];
+    const total = cm.size;
+    const tr = document.createElement("tr");
+    let h = `<td><strong>${esc(d)}</strong></td><td style="text-align:center">${total}</td>`;
+    for(const skill of skillList){
+      const count = [...cm.values()].filter(skills=>skills.has(skill)).length;
+      const pct = total ? Math.round(100*count/total) : 0;
+      const heatClass = pct===0 ? "heat-0" : pct<25 ? "heat-1" : pct<50 ? "heat-2" : pct<75 ? "heat-3" : "heat-4";
+      h += `<td class="${heatClass}" style="text-align:center" title="${d} · ${esc(skill)}: ${pct}% (${count}/${total})">${pct}%</td>`;
+    }
+    tr.innerHTML = h; tb.appendChild(tr);
+  }
+  if(!depts.length){
+    tb.innerHTML = `<tr><td colspan="100" style="text-align:center;padding:32px;color:#888">${S.rows.length?"No data for selected semester.":"No syllabi extracted yet."}</td></tr>`;
+  }
+
+  // Bloom's bar chart
+  const bloomCounts = {};
+  BLOOM_LEVELS.forEach(b=>bloomCounts[b]=0);
+  const seenBlooms = new Map();
+  for(const r of rows){
+    if(!seenBlooms.has(r.course)) seenBlooms.set(r.course, new Set());
+    for(const b of (r.blooms||[])) seenBlooms.get(r.course).add(b);
+  }
+  for(const [,bloomSet] of seenBlooms) for(const b of bloomSet) if(bloomCounts[b]!==undefined) bloomCounts[b]++;
+  const maxBloom = Math.max(1, ...Object.values(bloomCounts));
+  const bloomColors = ["#bbdefb","#90caf9","#42a5f5","#1565c0","#0d47a1","#01579b"];
+  document.getElementById("bloomsBar").innerHTML = BLOOM_LEVELS.map((b,i)=>{
+    const h = Math.max(4, Math.round(100*(bloomCounts[b]/maxBloom)));
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><div style="width:100%;height:${h}%;background:${bloomColors[i]};border-radius:3px 3px 0 0" title="${b}: ${bloomCounts[b]} course(s)"></div></div>`;
+  }).join("");
+  document.getElementById("bloomsLabels").innerHTML = BLOOM_LEVELS.map((b,i)=>`<div style="flex:1;text-align:center;font-size:11px;color:#555">${b}<br><strong>${bloomCounts[b]}</strong></div>`).join("");
+}
+document.getElementById("dashSkillView").onchange = renderDashboard;
+document.getElementById("dashSemFilter").onchange = renderDashboard;
+
+/* ---------- coverage analysis ---------- */
+function renderCoverage(){
+  const skillView = document.getElementById("covSkillView").value;
+  const skillList = skillView === 'essential' ? NACE : NACE8;
+  const rowField  = skillView === 'essential' ? 'skills' : 'nace_skills';
+
+  const semSel = document.getElementById("covSemFilter");
+  const semSet = [...new Set(S.rows.map(r=>r.semester+" "+r.year))].sort();
+  const cur = semSel.value;
+  semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)}</option>`).join("");
+  const sem = semSel.value;
+  const threshold = parseInt(document.getElementById("gapThreshold").value)||50;
+  document.getElementById("gapThreshVal").textContent = threshold;
+
+  const rows = sem ? S.rows.filter(r=>(r.semester+" "+r.year)===sem) : S.rows;
+  const depts = [...new Set(rows.map(r=>r.dept||parseCourse(r.course).dept))].sort();
+
+  const deptCourseMaps = {};
+  for(const r of rows){
+    const d = r.dept||parseCourse(r.course).dept;
+    if(!deptCourseMaps[d]) deptCourseMaps[d] = new Map();
+    const cm = deptCourseMaps[d];
+    if(!cm.has(r.course)) cm.set(r.course, new Set());
+    for(const s of (r[rowField]||[])) cm.get(r.course).add(s.skill);
+  }
+
+  const tbl = document.getElementById("covTable");
+  tbl.querySelector("thead").innerHTML = "<tr><th>Department</th><th>Courses</th>"+skillList.map(s=>`<th style="text-align:center;font-size:10px">${esc(s)}</th>`).join("")+"<th style='text-align:center'>Coverage Score</th></tr>";
+  const tb = tbl.querySelector("tbody"); tb.innerHTML = "";
+  const skillTotals = skillList.map(()=>({covered:0,total:0}));
+  for(const d of depts){
+    const cm = deptCourseMaps[d];
+    const total = cm.size;
+    const tr = document.createElement("tr");
+    let h = `<td><strong>${esc(d)}</strong></td><td style="text-align:center">${total}</td>`;
+    let covered = 0;
+    skillList.forEach((skill,i)=>{
+      const count = [...cm.values()].filter(skills=>skills.has(skill)).length;
+      const pct = total ? Math.round(100*count/total) : 0;
+      const isGap = pct < threshold;
+      if(!isGap) covered++;
+      skillTotals[i].covered += count;
+      skillTotals[i].total += total;
+      h += `<td class="${isGap?"gap-cell":""}" style="text-align:center" title="${d} · ${esc(skill)}: ${pct}% (${count}/${total})">${count}/${total}</td>`;
+    });
+    const score = Math.round(100*covered/skillList.length);
+    const scoreColor = score<33?"#c62828":score<66?"#e07a00":"#1a7f37";
+    h += `<td style="text-align:center;font-weight:700;color:${scoreColor}">${score}%</td>`;
+    tr.innerHTML = h; tb.appendChild(tr);
+  }
+  if(depts.length){
+    const totalsRow = document.createElement("tr");
+    totalsRow.style.cssText = "font-weight:600;background:#f4f4f4;border-top:2px solid #ddd";
+    let h = `<td>All Departments</td><td style="text-align:center">${[...new Set(rows.map(r=>r.course))].size}</td>`;
+    skillList.forEach((_,i)=>{
+      const pct = skillTotals[i].total ? Math.round(100*skillTotals[i].covered/skillTotals[i].total) : 0;
+      const isGap = pct < threshold;
+      h += `<td class="${isGap?"gap-cell":""}" style="text-align:center">${pct}%</td>`;
+    });
+    h += `<td></td>`;
+    totalsRow.innerHTML = h; tb.appendChild(totalsRow);
+  } else {
+    tb.innerHTML = `<tr><td colspan="100" style="text-align:center;padding:32px;color:#888">${S.rows.length?"No data for selected semester.":"No syllabi extracted yet."}</td></tr>`;
+  }
+}
+document.getElementById("covSkillView").onchange = renderCoverage;
+document.getElementById("covSemFilter").onchange = renderCoverage;
+document.getElementById("gapThreshold").oninput = renderCoverage;
 
 /* ---------- settings ---------- */
 function updateApiNudge(){
@@ -870,7 +1156,7 @@ document.getElementById("wipeBtn").onclick = () => {
 restore();
 document.getElementById("apiKey").value = localStorage.getItem("sa_apiKey")||"";
 document.getElementById("modelSelect").value = localStorage.getItem("sa_model")||"claude-sonnet-4-6";
-renderQueue(); renderFields(); renderResults(); renderSkills(); updateApiNudge();
+renderQueue(); renderFields(); renderResults(); renderSkills(); renderDashboard(); renderCoverage(); updateApiNudge();
 </script>
 </body>
 </html>
