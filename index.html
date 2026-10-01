@@ -150,7 +150,7 @@
     <label class="small">Model</label>
     <select id="modelSelect" style="padding:8px; margin:6px 0; display:block">
       <option value="claude-sonnet-4-6">Claude Sonnet (recommended)</option>
-      <option value="claude-haiku-4-5">Claude Haiku (faster, cheaper)</option>
+      <option value="claude-haiku-4-5-20251001">Claude Haiku (faster, cheaper)</option>
     </select>
     <button class="primary" id="saveSettingsBtn">Save Settings</button>
     <p class="small" id="settingsMsg" style="margin-top:8px"></p>
@@ -281,6 +281,7 @@ function addFiles(list){
   for(const f of list){
     const ext = f.name.split(".").pop().toLowerCase();
     if(!["pdf","docx","xlsx","xls","txt"].includes(ext)){ alert(f.name+": unsupported format. Convert .doc files to .docx or PDF."); continue; }
+    if(S.queue.some(q=>q.name===f.name)){ alert(f.name+" is already in the queue."); continue; }
     S.queue.push({ id:uid(), file:f, name:f.name, ext, status:"queued", error:"", ...guessMeta(f.name) });
   }
   renderQueue();
@@ -464,9 +465,10 @@ function renderResults(){
   const names = activeFieldNames();
   const visNames = names.filter(n=>!hiddenCols.has(n));
   const show = c => !hiddenCols.has(c);
-  const semSet = [...new Set(S.rows.map(r=>r.semester+" "+r.year))].sort();
+  const semCounts = S.rows.reduce((m,r)=>{ const k=r.semester+" "+r.year; m.set(k,(m.get(k)||0)+1); return m; }, new Map());
+  const semSet = [...semCounts.keys()].sort();
   const semSel = document.getElementById("semFilter"); const cur = semSel.value;
-  semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)}</option>`).join("");
+  semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)} (${semCounts.get(s)})</option>`).join("");
   const skSel = document.getElementById("skillFilter"); const curSk = skSel.value;
   skSel.innerHTML = '<option value="">All essential skills</option>' + NACE.map(s=>`<option${s===curSk?" selected":""}>${esc(s)}</option>`).join("");
   document.querySelector("#resultsTable thead").innerHTML =
@@ -503,6 +505,11 @@ function renderResults(){
     tr.querySelector('[data-a="sel"]').onclick = e => { e.stopPropagation(); r._sel = e.target.checked; };
     tr.onclick = () => openDetail(r);
     tb.appendChild(tr);
+  }
+  if(!shown.length){
+    const empty = document.createElement("tr");
+    empty.innerHTML = `<td colspan="100" style="text-align:center;padding:32px;color:#888">${S.rows.length ? "No rows match the current filter." : "No syllabi extracted yet — upload files on the Upload tab and run extraction."}</td>`;
+    tb.appendChild(empty);
   }
   document.getElementById("selAllChk").onchange = e => {
     document.querySelectorAll('#resultsTable tbody [data-a="sel"]').forEach(cb => { cb.checked = e.target.checked; });
@@ -643,9 +650,10 @@ function renderSkills(){
   document.getElementById("naceBtn").classList.toggle("btn-active", skillsView === 'nace');
 
   const semSel = document.getElementById("skillsSemFilter");
-  const semSet = [...new Set(S.rows.map(r=>r.semester+" "+r.year))].sort();
+  const semCounts2 = S.rows.reduce((m,r)=>{ const k=r.semester+" "+r.year; m.set(k,(m.get(k)||0)+1); return m; }, new Map());
+  const semSet = [...semCounts2.keys()].sort();
   const cur = semSel.value;
-  semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)}</option>`).join("");
+  semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)} (${semCounts2.get(s)})</option>`).join("");
   const sem = semSel.value;
   const rows = sem ? S.rows.filter(r=>(r.semester+" "+r.year)===sem) : S.rows;
 
@@ -676,10 +684,16 @@ function renderSkills(){
     }
     tr.innerHTML = h; tb.appendChild(tr);
   }
-  const totals = document.createElement("tr");
-  totals.style.cssText = "font-weight:600;background:#f4f4f4";
-  totals.innerHTML = "<td>Courses with skill</td>"+skillList.map(skill=>`<td style="text-align:center">${courses.filter(c=>courseMap.get(c).has(skill)).length}</td>`).join("");
-  tb.appendChild(totals);
+  if(!courses.length){
+    const empty = document.createElement("tr");
+    empty.innerHTML = `<td colspan="100" style="text-align:center;padding:32px;color:#888">${S.rows.length ? "No rows match the selected semester." : "No syllabi extracted yet — extract syllabi to populate the skills matrix."}</td>`;
+    tb.appendChild(empty);
+  } else {
+    const totals = document.createElement("tr");
+    totals.style.cssText = "font-weight:600;background:#f4f4f4";
+    totals.innerHTML = "<td>Courses with skill</td>"+skillList.map(skill=>`<td style="text-align:center">${courses.filter(c=>courseMap.get(c).has(skill)).length}</td>`).join("");
+    tb.appendChild(totals);
+  }
 }
 document.getElementById("skillsSemFilter").oninput = renderSkills;
 document.getElementById("essBtn").onclick  = () => { skillsView = 'essential'; renderSkills(); };
