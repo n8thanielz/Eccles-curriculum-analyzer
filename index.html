@@ -1056,10 +1056,10 @@ function renderDashboard(){
   const uniqueDepts   = new Set(rows.map(r=>r.dept||parseCourse(r.course).dept));
   const uniqueSems    = new Set(rows.map(r=>r.semester+" "+r.year));
   const avgSkills = uniqueCourses.size
-    ? (rows.reduce((sum,r)=>{
-        const courseSkills = new Set((r[rowField]||[]).map(s=>s.skill));
-        return sum + courseSkills.size;
-      },0) / uniqueCourses.size).toFixed(1)
+    ? ([...uniqueCourses].reduce((sum, course) => {
+        const skills = new Set(rows.filter(r=>r.course===course).flatMap(r=>(r[rowField]||[]).map(s=>s.skill)));
+        return sum + skills.size;
+      }, 0) / uniqueCourses.size).toFixed(1)
     : "—";
   const coursesWithAnySkill = new Set(rows.filter(r=>(r[rowField]||[]).length>0).map(r=>r.course)).size;
   const pctCoverage = uniqueCourses.size ? Math.round(100*coursesWithAnySkill/uniqueCourses.size) : 0;
@@ -1212,7 +1212,10 @@ function generateReport(){
   const uniqueDepts   = new Set(rows.map(r=>r.dept||parseCourse(r.course).dept));
   const coursesWithSkill = new Set(rows.filter(r=>(r[rowField]||[]).length>0).map(r=>r.course)).size;
   const pctCoverage = uniqueCourses.size ? Math.round(100*coursesWithSkill/uniqueCourses.size) : 0;
-  const avgSkills = uniqueCourses.size ? (rows.reduce((sum,r)=>sum+new Set((r[rowField]||[]).map(s=>s.skill)).size, 0)/uniqueCourses.size).toFixed(1) : "—";
+  const avgSkills = uniqueCourses.size ? ([...uniqueCourses].reduce((sum,course)=>{
+    const skills = new Set(rows.filter(r=>r.course===course).flatMap(r=>(r[rowField]||[]).map(s=>s.skill)));
+    return sum + skills.size;
+  },0)/uniqueCourses.size).toFixed(1) : "—";
 
   // Dept course maps
   const depts = [...uniqueDepts].sort();
