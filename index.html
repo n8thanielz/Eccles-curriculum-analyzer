@@ -60,6 +60,11 @@
   .intensity-S { color:#4caf50; font-size:20px; cursor:default; }
   .intensity-I { color:#a5d6a7; font-size:20px; cursor:default; }
   .bloom-badge { display:inline-block; background:#e8eaf6; color:#3949ab; border-radius:3px; padding:1px 6px; font-size:11px; margin:1px; }
+  .chip-P { display:inline-block; background:#1a7f37; color:#fff; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
+  .chip-S { display:inline-block; background:#4caf50; color:#fff; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
+  .chip-I { display:inline-block; background:#c8e6c9; color:#1a5e20; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
+  .dept-hdr td { background:#f4f4f4; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.8px; color:#555; border-top:2px solid #ddd; }
+  .dept-sub td { background:#fafafa; font-size:11px; color:#aaa; font-style:italic; border-bottom:2px solid #eee; }
 </style>
 </head>
 <body>
@@ -266,6 +271,8 @@ const SKILL_DEFS = {
   "Career Readiness": "The ability to demonstrate and develop the competencies needed to navigate and advance in the workplace. Look for career development content, resume or interview preparation, workplace simulations, industry mentorship, networking activities, or outcomes explicitly framed in terms of professional or career readiness. (U of U/USHE Essential Skills; AACSB: Application of Knowledge in Professional Contexts; NACE: Career and Self-Development)"
 };
 const NACE8 = ["Career & Self-Development","Communication","Critical Thinking","Equity & Inclusion","Leadership","Professionalism","Teamwork","Technology"];
+const NACE_SHORT  = ["Analytical","Critical Thinking","Quant Literacy","Tech & Digital","Written Comm","Oral Comm","Collaboration","Interpersonal","Leadership","Work Ethic","Career Readiness"];
+const NACE8_SHORT = ["Career Dev","Communication","Critical Thinking","Equity & Inclusion","Leadership","Professionalism","Teamwork","Technology"];
 const BLOOM_LEVELS = ["Remember","Understand","Apply","Analyze","Evaluate","Create"];
 function parseCourse(course){
   const m = (course||"").trim().match(/^([A-Za-z]+)\s*(\d)/);
@@ -286,7 +293,8 @@ const DEFAULT_FIELDS = [
 ];
 let S = { fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)), rows: [], queue: [] };
 let running = false, stopFlag = false, reextractSources = [];
-let hiddenCols = new Set(JSON.parse(localStorage.getItem("sa_hiddenCols")||"[]"));
+const _h = localStorage.getItem("sa_hiddenCols");
+let hiddenCols = new Set(_h ? JSON.parse(_h) : ["Department","Extracted"]);
 function saveHiddenCols(){ localStorage.setItem("sa_hiddenCols", JSON.stringify([...hiddenCols])); }
 
 const REMOVED_FIELDS = new Set(["Pedagogy","Classroom Policies & Conduct","Class Format","Final Exam","Required Materials","Textbooks Required","Articles Required","Subscriptions","Software Platforms","Other Required Materials"]);
@@ -564,6 +572,7 @@ function renderResults(){
   skSel.innerHTML = '<option value="">All essential skills</option>' + NACE.map(s=>`<option${s===curSk?" selected":""}>${esc(s)}</option>`).join("");
   document.querySelector("#resultsTable thead").innerHTML =
     "<tr><th style='width:30px'><input type='checkbox' id='selAllChk' title='Select all'></th><th>Course</th>" +
+    (show("Department") ? "<th>Dept</th>" : "") +
     (show("Title") ? "<th>Title</th>" : "") +
     "<th>Sec</th><th>Semester</th>" +
     (show("Meeting") ? "<th>Meeting</th>" : "") +
@@ -571,29 +580,36 @@ function renderResults(){
     (show("Instructor") ? "<th>Instructor</th>" : "") +
     (show("Essential Skills") ? "<th>Essential Skills</th>" : "") +
     visNames.map(n=>"<th>"+esc(n)+"</th>").join("") +
+    (show("Extracted") ? "<th>Extracted</th>" : "") +
     "</tr>";
   const tb = document.querySelector("#resultsTable tbody"); tb.innerHTML = "";
   const shown = S.rows.filter(rowMatches);
   document.getElementById("rowCount").textContent = shown.length + " of " + S.rows.length + " rows";
+  const isNS = v => (String(v==null?"":v)).trim().toLowerCase()==="not stated";
+  const dash = '<span style="color:#ccc">—</span>';
   for(const r of shown){
     const tr = document.createElement("tr");
     const cell = (name) => {
       const v = r.fields[name]==null?"not stated":String(r.fields[name]);
-      const bad = r.flags.includes(name) || v.trim().toLowerCase()==="not stated";
+      const bad = r.flags.includes(name) || isNS(v);
       const short = v.length>140 ? v.slice(0,140)+"…" : v;
-      return `<td class="${bad?"flagged":""}">${esc(short)}</td>`;
+      return `<td class="${bad?"flagged":""}">${isNS(v)?dash:esc(short)}</td>`;
     };
-    const sectionFlagged = k => r.flags.includes(k) || (r[k]||"").trim().toLowerCase()==="not stated";
+    const sectionFlagged = k => r.flags.includes(k) || isNS(r[k]||"");
+    const nsv = (v) => isNS(v||"") ? dash : esc(v||"");
     const flagBadge = r.flags.length ? ` <span style="background:#e07a00;color:#fff;border-radius:3px;padding:1px 5px;font-size:11px;font-weight:600;cursor:default" title="AI flagged uncertain: ${esc(r.flags.join(', '))}">⚠ ${r.flags.length}</span>` : '';
+    const chipClass = i => i==="Primary"?"chip-P":i==="Secondary"?"chip-S":"chip-I";
     tr.innerHTML = `<td><input type="checkbox" data-a="sel"></td>
       <td>${esc(r.course)}${flagBadge}</td>` +
-      (show("Title") ? `<td class="${(r.title||"")==="not stated"?"flagged":""}">${esc(r.title||"not stated")}</td>` : "") +
+      (show("Department") ? `<td style="white-space:nowrap">${esc(r.dept||parseCourse(r.course).dept)}</td>` : "") +
+      (show("Title") ? `<td class="${isNS(r.title||"")?"flagged":""}">${nsv(r.title)}</td>` : "") +
       `<td>${esc(r.section)}</td><td>${esc(r.semester)} ${esc(r.year)}</td>` +
-      (show("Meeting") ? `<td class="${sectionFlagged("meeting_pattern")?"flagged":""}">${esc(r.meeting_pattern||"not stated")}</td>` : "") +
-      (show("Location") ? `<td class="${sectionFlagged("location")?"flagged":""}">${esc(r.location||"not stated")}</td>` : "") +
-      (show("Instructor") ? `<td class="${sectionFlagged("instructor")?"flagged":""}">${esc(r.instructor)}</td>` : "") +
-      (show("Essential Skills") ? `<td>${r.skills.map(s=>`<span class="chip" title="${esc(s.evidence)}">${esc(s.skill)}</span>`).join("")}</td>` : "") +
-      visNames.map(cell).join("");
+      (show("Meeting") ? `<td class="${sectionFlagged("meeting_pattern")?"flagged":""}">${nsv(r.meeting_pattern)}</td>` : "") +
+      (show("Location") ? `<td class="${sectionFlagged("location")?"flagged":""}">${nsv(r.location)}</td>` : "") +
+      (show("Instructor") ? `<td class="${sectionFlagged("instructor")?"flagged":""}">${nsv(r.instructor)}</td>` : "") +
+      (show("Essential Skills") ? `<td>${r.skills.map(s=>`<span class="${chipClass(s.intensity)}" title="${esc(s.intensity+': '+s.evidence)}">${esc(s.skill)}</span>`).join("")}</td>` : "") +
+      visNames.map(cell).join("") +
+      (show("Extracted") ? `<td style="white-space:nowrap;color:#888;font-size:12px">${r.extractedAt?r.extractedAt.slice(0,10):dash}</td>` : "");
     tr.querySelector('[data-a="sel"]').onclick = e => { e.stopPropagation(); r._sel = e.target.checked; };
     tr.onclick = () => openDetail(r);
     tb.appendChild(tr);
@@ -611,7 +627,7 @@ function renderResults(){
 ["searchBox","semFilter","deptFilter","levelFilter","skillFilter"].forEach(id => document.getElementById(id).oninput = renderResults);
 
 function renderColPanel(){
-  const toggleable = ["Title","Meeting","Location","Instructor","Essential Skills",...activeFieldNames()];
+  const toggleable = ["Department","Title","Meeting","Location","Instructor","Essential Skills",...activeFieldNames(),"Extracted"];
   const panel = document.getElementById("colPanel");
   panel.innerHTML = '<span class="small" style="margin-right:12px;font-weight:600">Show columns:</span>' +
     toggleable.map(name=>`<label style="margin-right:14px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" ${!hiddenCols.has(name)?"checked":""} data-col="${esc(name)}"> ${esc(name)}</label>`).join("");
@@ -823,38 +839,64 @@ function renderSkills(){
       if(s.evidence) sm.get(s.skill).evidence.push(s.evidence);
     }
   }
-  const courses = [...courseMap.keys()].sort();
-  document.getElementById("skillsCount").textContent = courses.length+" course(s)";
-
-  const tbl = document.getElementById("skillsTable");
-  tbl.querySelector("thead").innerHTML = "<tr><th>Course</th>"+skillList.map(s=>`<th style="width:90px;text-align:center;font-size:11px">${esc(s)}</th>`).join("")+"</tr>";
-  const tb = tbl.querySelector("tbody"); tb.innerHTML = "";
-  for(const course of courses){
-    const sm = courseMap.get(course);
-    const tr = document.createElement("tr");
-    let h = `<td>${esc(course)}</td>`;
-    for(const skill of skillList){
-      const entry = sm.get(skill);
-      if(entry){
-        const cls = INTENSITY_COLOR[entry.intensity]||"intensity-S";
-        const sym = INTENSITY_SYMBOL[entry.intensity]||"●";
-        const evText = [...new Set(entry.evidence)].join(" | ");
-        const tip = entry.intensity + (evText ? ": "+evText : "");
-        h += `<td style="text-align:center"><span class="${cls}" title="${esc(tip)}">${sym}</span></td>`;
-      } else {
-        h += `<td></td>`;
-      }
-    }
-    tr.innerHTML = h; tb.appendChild(tr);
+  // Build dept → [course] grouping
+  const courseDept = new Map();
+  for(const r of rows){ if(!courseDept.has(r.course)) courseDept.set(r.course, r.dept||parseCourse(r.course).dept); }
+  const deptGroups = new Map();
+  for(const course of [...courseMap.keys()].sort()){
+    const d = courseDept.get(course)||"Other";
+    if(!deptGroups.has(d)) deptGroups.set(d,[]);
+    deptGroups.get(d).push(course);
   }
+  const sortedDepts = [...deptGroups.keys()].sort();
+  const courses = [...courseMap.keys()].sort();
+  document.getElementById("skillsCount").textContent = courses.length+" course(s) across "+sortedDepts.length+" dept(s)";
+
+  const shortList = skillsView==='essential' ? NACE_SHORT : NACE8_SHORT;
+  const tbl = document.getElementById("skillsTable");
+  tbl.querySelector("thead").innerHTML = "<tr><th>Course</th>"+skillList.map((s,i)=>`<th style="width:80px;text-align:center;font-size:11px" title="${esc(s)}">${esc(shortList[i])}</th>`).join("")+"</tr>";
+  const tb = tbl.querySelector("tbody"); tb.innerHTML = "";
+
   if(!courses.length){
     const empty = document.createElement("tr");
     empty.innerHTML = `<td colspan="100" style="text-align:center;padding:32px;color:#888">${S.rows.length ? "No rows match the selected filters." : "No syllabi extracted yet — extract syllabi to populate the skills matrix."}</td>`;
     tb.appendChild(empty);
   } else {
+    for(const dept of sortedDepts){
+      const deptCourses = deptGroups.get(dept);
+      // Department header row
+      const hdr = document.createElement("tr"); hdr.className = "dept-hdr";
+      hdr.innerHTML = `<td colspan="${1+skillList.length}" style="padding:6px 9px">${esc(dept)} <span style="font-weight:400;font-style:italic">(${deptCourses.length} course${deptCourses.length!==1?"s":""})</span></td>`;
+      tb.appendChild(hdr);
+      // Course rows
+      for(const course of deptCourses){
+        const sm = courseMap.get(course);
+        const tr = document.createElement("tr");
+        let h = `<td style="padding-left:18px">${esc(course)}</td>`;
+        for(const skill of skillList){
+          const entry = sm.get(skill);
+          if(entry){
+            const cls = INTENSITY_COLOR[entry.intensity]||"intensity-S";
+            const sym = INTENSITY_SYMBOL[entry.intensity]||"●";
+            const evText = [...new Set(entry.evidence)].join(" | ");
+            h += `<td style="text-align:center"><span class="${cls}" title="${esc(entry.intensity+(evText?": "+evText:""))}">${sym}</span></td>`;
+          } else { h += `<td></td>`; }
+        }
+        tr.innerHTML = h; tb.appendChild(tr);
+      }
+      // Dept subtotal row
+      const sub = document.createElement("tr"); sub.className = "dept-sub";
+      sub.innerHTML = `<td style="padding-left:18px">covered</td>`+
+        skillList.map(skill=>{
+          const n = deptCourses.filter(c=>courseMap.get(c).has(skill)).length;
+          return `<td style="text-align:center">${n>0?n+"/"+deptCourses.length:""}</td>`;
+        }).join("");
+      tb.appendChild(sub);
+    }
+    // Grand totals
     const totals = document.createElement("tr");
-    totals.style.cssText = "font-weight:600;background:#f4f4f4";
-    totals.innerHTML = "<td>Courses with skill</td>"+skillList.map(skill=>`<td style="text-align:center">${courses.filter(c=>courseMap.get(c).has(skill)).length}</td>`).join("");
+    totals.style.cssText = "font-weight:600;background:#e8f5e9;border-top:2px solid #ccc";
+    totals.innerHTML = "<td>All courses ("+courses.length+")</td>"+skillList.map(skill=>`<td style="text-align:center">${courses.filter(c=>courseMap.get(c).has(skill)).length}</td>`).join("");
     tb.appendChild(totals);
   }
 }
