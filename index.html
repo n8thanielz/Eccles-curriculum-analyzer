@@ -164,6 +164,7 @@
       <h2 style="flex:1">Skill Coverage Heatmap</h2>
       <select id="dashSkillView"><option value="essential">Essential Skills</option><option value="nace">NACE Competencies</option></select>
       <select id="dashSemFilter"><option value="">All semesters</option></select>
+      <button class="primary" id="reportBtn" style="white-space:nowrap">Generate Report</button>
     </div>
     <p class="small" style="margin-bottom:8px">Rows = departments. Cells = % of unique courses in that department with evidence for each skill (at any intensity). Darker green = higher coverage.</p>
     <div style="overflow:auto;max-height:60vh"><table id="dashTable"><thead></thead><tbody></tbody></table></div>
@@ -1172,6 +1173,156 @@ function renderCoverage(){
 document.getElementById("covSkillView").onchange = renderCoverage;
 document.getElementById("covSemFilter").onchange = renderCoverage;
 document.getElementById("gapThreshold").oninput = renderCoverage;
+
+/* ---------- report ---------- */
+function generateReport(){
+  const skillView = document.getElementById("dashSkillView").value;
+  const skillList = skillView==='essential' ? NACE : NACE8;
+  const shortList = skillView==='essential' ? NACE_SHORT : NACE8_SHORT;
+  const rowField  = skillView==='essential' ? 'skills' : 'nace_skills';
+  const semFilter = document.getElementById("dashSemFilter").value;
+  const threshold = parseInt(document.getElementById("gapThreshold").value)||50;
+  const rows = semFilter ? S.rows.filter(r=>(r.semester+" "+r.year)===semFilter) : S.rows;
+  if(!rows.length){ alert("No data to report. Extract some syllabi first."); return; }
+
+  const semLabel   = semFilter||"All Semesters";
+  const skillLabel = skillView==='essential' ? 'Essential Skills' : 'NACE Competencies';
+  const dateStr    = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  const uniqueCourses = new Set(rows.map(r=>r.course));
+  const uniqueDepts   = new Set(rows.map(r=>r.dept||parseCourse(r.course).dept));
+  const coursesWithSkill = new Set(rows.filter(r=>(r[rowField]||[]).length>0).map(r=>r.course)).size;
+  const pctCoverage = uniqueCourses.size ? Math.round(100*coursesWithSkill/uniqueCourses.size) : 0;
+  const avgSkills = uniqueCourses.size ? (rows.reduce((sum,r)=>sum+new Set((r[rowField]||[]).map(s=>s.skill)).size, 0)/uniqueCourses.size).toFixed(1) : "—";
+
+  // Dept course maps
+  const depts = [...uniqueDepts].sort();
+  const deptCM = {};
+  for(const r of rows){
+    const d = r.dept||parseCourse(r.course).dept;
+    if(!deptCM[d]) deptCM[d] = new Map();
+    if(!deptCM[d].has(r.course)) deptCM[d].set(r.course, new Set());
+    for(const s of (r[rowField]||[])) deptCM[d].get(r.course).add(s.skill);
+  }
+
+  // Count total gaps
+  let totalGaps = 0;
+  for(const d of depts){
+    const cm = deptCM[d]; const tot = cm.size;
+    for(const sk of skillList){
+      const pct = tot ? Math.round(100*[...cm.values()].filter(s=>s.has(sk)).length/tot) : 0;
+      if(pct < threshold) totalGaps++;
+    }
+  }
+
+  // Bloom's
+  const bloomCounts = {}; BLOOM_LEVELS.forEach(b=>bloomCounts[b]=0);
+  const seenBlooms = new Map();
+  for(const r of rows){
+    if(!seenBlooms.has(r.course)) seenBlooms.set(r.course, new Set());
+    for(const b of (r.blooms||[])) seenBlooms.get(r.course).add(b);
+  }
+  for(const[,bs] of seenBlooms) for(const b of bs) if(bloomCounts[b]!==undefined) bloomCounts[b]++;
+  const maxBloom = Math.max(1,...Object.values(bloomCounts));
+
+  // Build heatmap rows
+  const heatRows = depts.map(d=>{
+    const cm = deptCM[d]; const tot = cm.size; let covered=0;
+    const cells = skillList.map(sk=>{
+      const cnt = [...cm.values()].filter(s=>s.has(sk)).length;
+      const pct = tot ? Math.round(100*cnt/tot) : 0;
+      const bg  = pct===0?'':pct<25?'h1':pct<50?'h2':pct<75?'h3':'h4';
+      const gap = pct<threshold;
+      if(!gap) covered++;
+      return `<td class="${bg}${gap?' gp':''}" style="text-align:center">${pct}%</td>`;
+    }).join("");
+    const score = Math.round(100*covered/skillList.length);
+    const sc = score<33?"#c62828":score<66?"#e07a00":"#1a7f37";
+    return `<tr><td><strong>${esc(d)}</strong></td><td style="text-align:center">${tot}</td>${cells}<td style="text-align:center;font-weight:700;color:${sc}">${score}%</td></tr>`;
+  }).join("");
+
+  const allCourses = [...uniqueCourses];
+  const overallCells = skillList.map(sk=>{
+    const cnt = [...new Set(rows.filter(r=>(r[rowField]||[]).some(s=>s.skill===sk)).map(r=>r.course))].length;
+    const pct = allCourses.length ? Math.round(100*cnt/allCourses.length) : 0;
+    const bg  = pct===0?'':pct<25?'h1':pct<50?'h2':pct<75?'h3':'h4';
+    return `<td class="${bg}${pct<threshold?' gp':''}" style="text-align:center;font-weight:600">${pct}%</td>`;
+  }).join("");
+
+  // Build Bloom's bars
+  const bloomColors = ["#bbdefb","#90caf9","#42a5f5","#1565c0","#0d47a1","#01579b"];
+  const bloomHtml = BLOOM_LEVELS.map((b,i)=>{
+    const cnt = bloomCounts[b];
+    const barW = Math.max(3,Math.round(100*cnt/maxBloom));
+    const pct  = uniqueCourses.size ? Math.round(100*cnt/uniqueCourses.size) : 0;
+    const tc   = i>2?'#fff':'#333';
+    return `<div style="display:flex;align-items:center;gap:10px;margin:5px 0">
+      <div style="width:82px;text-align:right;font-size:9pt;color:#555">${b}</div>
+      <div style="flex:1;background:#f0f0f0;border-radius:3px;height:20px">
+        <div style="width:${barW}%;height:20px;border-radius:3px;background:${bloomColors[i]};display:flex;align-items:center;padding-left:8px;color:${tc};font-size:8pt;min-width:32px;box-sizing:border-box">${cnt}</div>
+      </div>
+      <div style="width:36px;text-align:right;font-size:9pt;color:#888">${pct}%</div>
+    </div>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Curriculum Report — DESB</title>
+<style>
+@page{margin:.75in;size:letter}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",Arial,sans-serif;color:#1a1a1a;font-size:11pt;line-height:1.5}
+@media print{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h2{font-size:12pt;color:#BE0000;border-bottom:2px solid #BE0000;padding-bottom:4px;margin:28px 0 12px}
+table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:16px}
+th{background:#f4f4f4;font-weight:600;padding:5px 7px;text-align:left;border:1px solid #ddd}
+td{padding:4px 7px;border:1px solid #ddd;vertical-align:middle}
+.h1{background:#e8f5e9}.h2{background:#a5d6a7}.h3{background:#4caf50;color:#fff}.h4{background:#1a7f37;color:#fff}
+.gp{outline:2px solid #e07a00;outline-offset:-2px}
+</style>
+</head><body>
+
+<div style="background:#BE0000;color:#fff;padding:28px 32px;margin-bottom:24px;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+  <div style="font-size:9pt;opacity:.7;margin-bottom:6px">David Eccles School of Business</div>
+  <div style="font-size:20pt;font-weight:700">Curriculum Analysis Report</div>
+  <div style="font-size:10.5pt;opacity:.85;margin-top:6px">${esc(skillLabel)} · ${esc(semLabel)}</div>
+  <div style="font-size:9pt;opacity:.6;margin-top:12px">Generated ${dateStr}</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:28px">
+${[["Unique Courses",uniqueCourses.size],["Sections",rows.length],["Departments",uniqueDepts.size],["Skill Coverage",pctCoverage+"%"],["Avg Skills / Course",avgSkills],["Coverage Gaps",totalGaps]]
+  .map(([l,n])=>`<div style="border:1px solid #ddd;border-radius:5px;padding:12px;text-align:center"><div style="font-size:17pt;font-weight:700;color:#BE0000">${n}</div><div style="font-size:8.5pt;color:#666;margin-top:3px">${l}</div></div>`).join("")}
+</div>
+
+<h2>Skill Coverage by Department</h2>
+<p style="font-size:9.5pt;color:#666;margin-bottom:10px">Percentage of unique courses in each department with evidence for each skill. Orange-outlined cells fall below the ${threshold}% gap threshold. Score = % of skills above threshold.</p>
+<table>
+<thead><tr>
+  <th>Dept</th><th style="text-align:center">Courses</th>
+  ${shortList.map((s,i)=>`<th style="text-align:center;font-size:7.5pt" title="${esc(skillList[i])}">${esc(s)}</th>`).join("")}
+  <th style="text-align:center">Score</th>
+</tr></thead>
+<tbody>
+${heatRows}
+<tr style="font-weight:600;background:#f4f4f4;border-top:2px solid #ccc">
+  <td>All</td><td style="text-align:center">${allCourses.length}</td>${overallCells}<td></td>
+</tr>
+</tbody></table>
+
+<h2>Bloom's Taxonomy Distribution</h2>
+<p style="font-size:9.5pt;color:#666;margin-bottom:14px">Unique courses with evidence of each cognitive level in learning outcomes and assessments.</p>
+${bloomHtml}
+
+<div style="font-size:8.5pt;color:#bbb;margin-top:36px;border-top:1px solid #eee;padding-top:8px">
+  DESB Curriculum Analyzer &nbsp;·&nbsp; All skill tags are AI inferences — verify against source syllabi before reporting externally.
+</div>
+</body></html>`;
+
+  const win = window.open('','_blank');
+  if(!win){ alert("Pop-up blocked. Allow pop-ups for this page and try again."); return; }
+  win.document.write(html);
+  win.document.close();
+}
+document.getElementById("reportBtn").onclick = generateReport;
 
 /* ---------- settings ---------- */
 function updateApiNudge(){
