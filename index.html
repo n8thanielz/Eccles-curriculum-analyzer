@@ -934,8 +934,22 @@ function download(name, content, type){
   a.href = URL.createObjectURL(new Blob([content], {type})); a.download = name; a.click();
   URL.revokeObjectURL(a.href);
 }
-document.getElementById("saveDbBtn").onclick = () => {
-  download("syllabus-database-"+new Date().toISOString().slice(0,10)+".json", JSON.stringify({app:"SyllabusAnalyzer", version:2, savedAt:new Date().toISOString(), fields:S.fields, rows:S.rows}, null, 1), "application/json");
+document.getElementById("saveDbBtn").onclick = async () => {
+  const filename = "curriculum-database-"+new Date().toISOString().slice(0,10)+".json";
+  const content  = JSON.stringify({app:"EcclesCurriculumAnalyzer", version:2, savedAt:new Date().toISOString(), fields:S.fields, rows:S.rows}, null, 1);
+  if(window.showSaveFilePicker){
+    try{
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types:[{description:"JSON Database", accept:{"application/json":[".json"]}}]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(content);
+      await writable.close();
+    }catch(e){ if(e.name!=="AbortError") download(filename, content, "application/json"); }
+  } else {
+    download(filename, content, "application/json");
+  }
 };
 document.getElementById("loadDbBtn").onclick = () => document.getElementById("dbFileInput").click();
 document.getElementById("dbFileInput").onchange = async e => {
