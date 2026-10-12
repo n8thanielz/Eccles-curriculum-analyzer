@@ -430,7 +430,7 @@ Also extract these standard items:
 - durable_skills: assess which of these Essential Skills the course develops. Only tag a skill when the syllabus contains concrete evidence (an activity, assignment, outcome, or policy). For each tagged skill, include: (1) intensity — "Primary" if the skill is central with multiple graded assessments directly measuring it; "Secondary" if at least one graded component develops it; "Incidental" if it appears but is not a graded focus; (2) evidence — briefly state the specific evidence found. Do not tag skills without evidence. Shared across sections. The skills and their definitions are:\n${NACE.map(s=>`  - ${s}: ${SKILL_DEFS[s]}`).join("\n")}
 - nace_skills: separately, also assess which of these eight NACE career readiness competencies the course develops: ${NACE8_DEFS}. Apply the same rules — only tag with concrete evidence, include intensity and evidence. Shared across sections.
 - blooms_levels: identify which of these six Bloom's Taxonomy cognitive levels are explicitly developed in this course, based on learning outcomes and assessments: Remember, Understand, Apply, Analyze, Evaluate, Create. Return only the levels that are clearly present. Shared across sections.
-- confidence_flags: list the names of any fields (custom or standard) where you were uncertain, the document was ambiguous, or you had to interpret heavily.
+- confidence_flags: list ONLY fields where the document was genuinely ambiguous or contradictory, or where you had to make a significant inferential leap to produce an answer. Do NOT flag a field simply because the information was not present in the document — those are already recorded as "not stated" and do not need a flag. Only flag fields that have a value but where that value is uncertain.
 
 Rules:
 - If something is not in the document, write exactly "not stated". Never guess or invent.
@@ -598,7 +598,12 @@ function renderResults(){
     };
     const sectionFlagged = k => r.flags.includes(k) || isNS(r[k]||"");
     const nsv = (v) => isNS(v||"") ? dash : esc(v||"");
-    const flagBadge = r.flags.length ? ` <span style="background:#e07a00;color:#fff;border-radius:3px;padding:1px 5px;font-size:11px;font-weight:600;cursor:default" title="AI flagged uncertain: ${esc(r.flags.join(', '))}">⚠ ${r.flags.length}</span>` : '';
+    const meaningfulFlags = r.flags.filter(f => {
+      const cv = r[f]; if(cv !== undefined) return !isNS(String(cv));
+      const fv = r.fields && r.fields[f]; if(fv !== undefined) return !isNS(String(fv));
+      return true;
+    });
+    const flagBadge = meaningfulFlags.length ? ` <span style="background:#e07a00;color:#fff;border-radius:3px;padding:1px 5px;font-size:11px;font-weight:600;cursor:default" title="AI flagged uncertain: ${esc(meaningfulFlags.join(', '))}">⚠ ${meaningfulFlags.length}</span>` : '';
     const chipClass = i => i==="Primary"?"chip-P":i==="Secondary"?"chip-S":"chip-I";
     tr.innerHTML = `<td><input type="checkbox" data-a="sel"></td>
       <td>${esc(r.course)}${flagBadge}</td>` +
