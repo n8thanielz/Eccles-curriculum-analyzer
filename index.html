@@ -164,6 +164,7 @@
       <h2 style="flex:1">Skill Coverage Heatmap</h2>
       <select id="dashSkillView"><option value="essential">Essential Skills</option><option value="nace">NACE Competencies</option></select>
       <select id="dashSemFilter"><option value="">All semesters</option></select>
+      <select id="dashDeptFilter"><option value="">All departments</option></select>
       <button class="primary" id="reportBtn" style="white-space:nowrap">Generate Report</button>
     </div>
     <p class="small" style="margin-bottom:8px">Rows = departments. Cells = % of unique courses in that department with evidence for each skill (at any intensity). Darker green = higher coverage.</p>
@@ -1047,10 +1048,20 @@ function renderDashboard(){
 
   const semSel = document.getElementById("dashSemFilter");
   const semSet = [...new Set(S.rows.map(r=>r.semester+" "+r.year))].sort();
-  const cur = semSel.value;
-  semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===cur?" selected":""}>${esc(s)}</option>`).join("");
+  const curSem = semSel.value;
+  semSel.innerHTML = '<option value="">All semesters</option>' + semSet.map(s=>`<option${s===curSem?" selected":""}>${esc(s)}</option>`).join("");
+
+  const deptSel = document.getElementById("dashDeptFilter");
+  const deptSet = [...new Set(S.rows.map(r=>r.dept||parseCourse(r.course).dept))].sort();
+  const curDept = deptSel.value;
+  deptSel.innerHTML = '<option value="">All departments</option>' + deptSet.map(d=>`<option${d===curDept?" selected":""}>${esc(d)}</option>`).join("");
+
   const sem = semSel.value;
-  const rows = sem ? S.rows.filter(r=>(r.semester+" "+r.year)===sem) : S.rows;
+  const dept = deptSel.value;
+  const rows = S.rows.filter(r=>
+    (!sem  || (r.semester+" "+r.year)===sem) &&
+    (!dept || (r.dept||parseCourse(r.course).dept)===dept)
+  );
 
   const uniqueCourses = new Set(rows.map(r=>r.course));
   const uniqueDepts   = new Set(rows.map(r=>r.dept||parseCourse(r.course).dept));
@@ -1123,6 +1134,7 @@ function renderDashboard(){
 }
 document.getElementById("dashSkillView").onchange = renderDashboard;
 document.getElementById("dashSemFilter").onchange = renderDashboard;
+document.getElementById("dashDeptFilter").onchange = renderDashboard;
 
 /* ---------- coverage analysis ---------- */
 function renderCoverage(){
@@ -1199,12 +1211,17 @@ function generateReport(){
   const skillList = skillView==='essential' ? NACE : NACE8;
   const shortList = skillView==='essential' ? NACE_SHORT : NACE8_SHORT;
   const rowField  = skillView==='essential' ? 'skills' : 'nace_skills';
-  const semFilter = document.getElementById("dashSemFilter").value;
-  const threshold = parseInt(document.getElementById("gapThreshold").value)||50;
-  const rows = semFilter ? S.rows.filter(r=>(r.semester+" "+r.year)===semFilter) : S.rows;
+  const semFilter  = document.getElementById("dashSemFilter").value;
+  const deptFilter = document.getElementById("dashDeptFilter").value;
+  const threshold  = parseInt(document.getElementById("gapThreshold").value)||50;
+  const rows = S.rows.filter(r=>
+    (!semFilter  || (r.semester+" "+r.year)===semFilter) &&
+    (!deptFilter || (r.dept||parseCourse(r.course).dept)===deptFilter)
+  );
   if(!rows.length){ alert("No data to report. Extract some syllabi first."); return; }
 
   const semLabel   = semFilter||"All Semesters";
+  const deptLabel  = deptFilter||"All Departments";
   const skillLabel = skillView==='essential' ? 'Essential Skills' : 'NACE Competencies';
   const dateStr    = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
@@ -1306,7 +1323,7 @@ td{padding:4px 7px;border:1px solid #ddd;vertical-align:middle}
 <div style="background:#BE0000;color:#fff;padding:28px 32px;margin-bottom:24px;-webkit-print-color-adjust:exact;print-color-adjust:exact">
   <div style="font-size:9pt;opacity:.7;margin-bottom:6px">David Eccles School of Business</div>
   <div style="font-size:20pt;font-weight:700">Curriculum Analysis Report</div>
-  <div style="font-size:10.5pt;opacity:.85;margin-top:6px">${esc(skillLabel)} · ${esc(semLabel)}</div>
+  <div style="font-size:10.5pt;opacity:.85;margin-top:6px">${esc(skillLabel)} · ${esc(semLabel)} · ${esc(deptLabel)}</div>
   <div style="font-size:9pt;opacity:.6;margin-top:12px">Generated ${dateStr}</div>
 </div>
 
