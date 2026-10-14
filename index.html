@@ -743,7 +743,7 @@ function openDetail(r){
   for(const n of names){
     h += `<label>${esc(n)}${r.flags.includes(n)?" (AI flagged uncertain)":""}</label><textarea data-field="${esc(n)}">${esc(r.fields[n]==null?"not stated":r.fields[n])}</textarea>`;
   }
-  if((r.blooms||[]).length) h += `<label>Bloom's Taxonomy Levels</label><div style="margin-bottom:8px">${r.blooms.map(b=>`<span class="bloom-badge">${esc(b)}</span>`).join("")}</div>`;
+  h += `<label>Bloom's Taxonomy Levels</label><div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:10px">${BLOOM_LEVELS.map(b=>`<label style="font-weight:normal;display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" data-bloom="${esc(b)}" ${(r.blooms||[]).includes(b)?"checked":""}> ${esc(b)}</label>`).join("")}</div>`;
   h += `<label>Essential Skills (one per line: Skill | Intensity | evidence)</label><textarea data-skills>${esc(r.skills.map(s=>s.skill+" | "+(s.intensity||"Secondary")+" | "+s.evidence).join("\n"))}</textarea>`;
   h += `<label>NACE Competencies (one per line: Skill | Intensity | evidence)</label><textarea data-nace-skills>${esc((r.nace_skills||[]).map(s=>s.skill+" | "+(s.intensity||"Secondary")+" | "+s.evidence).join("\n"))}</textarea>`;
   document.getElementById("detailBody").innerHTML = h;
@@ -757,6 +757,7 @@ document.getElementById("detailSave").onclick = () => {
   const parseSkills = ta => ta.value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const parts=l.split("|"); const sk=parts[0].trim(); const maybeIntensity=parts[1]&&parts[1].trim(); const isIntensity=["Primary","Secondary","Incidental"].includes(maybeIntensity); const intensity=isIntensity?maybeIntensity:"Secondary"; const ev=(isIntensity?parts.slice(2):parts.slice(1)).join("|").trim(); return {skill:sk, intensity, evidence:ev}; });
   editing.skills = parseSkills(box.querySelector("[data-skills]"));
   editing.nace_skills = parseSkills(box.querySelector("[data-nace-skills]"));
+  editing.blooms = BLOOM_LEVELS.filter(b => box.querySelector(`[data-bloom="${b}"]`)?.checked);
   persist(); renderResults();
   document.getElementById("detailModal").style.display = "none";
 };
