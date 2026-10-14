@@ -981,7 +981,11 @@ document.getElementById("dbFileInput").onchange = async e => {
 };
 document.getElementById("csvBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Department","Level","Course","Course Title","Credit Hours","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Intensity","Essential Skills Evidence","NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags"];
+  const head = ["Source File","Department","Level","Course","Course Title","Credit Hours","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,
+    "Essential Skills","Essential Skills Intensity","Essential Skills Evidence",
+    "NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags",
+    ...NACE.map(s=>"ESS: "+s),
+    ...NACE8.map(s=>"NACE: "+s)];
   const csvCell = v => '"' + String(v==null?"":v).replace(/"/g,'""') + '"';
   const lines = [head.map(csvCell).join(",")];
   for(const r of S.rows.filter(rowMatches)){
@@ -994,13 +998,20 @@ document.getElementById("csvBtn").onclick = () => {
       (r.nace_skills||[]).map(s=>s.intensity||"Secondary").join("; "),
       (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
       (r.blooms||[]).join("; "),
-      r.flags.join("; ")].map(csvCell).join(","));
+      r.flags.join("; "),
+      ...NACE.map(skill=>{ const s=r.skills.find(x=>x.skill===skill); return s?s.intensity:""; }),
+      ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; })
+    ].map(csvCell).join(","));
   }
   download("syllabus-export-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
 };
 document.getElementById("xlsxBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Department","Level","Course","Course Title","Credit Hours","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Intensity","Essential Skills Evidence","NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags"];
+  const head = ["Source File","Department","Level","Course","Course Title","Credit Hours","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,
+    "Essential Skills","Essential Skills Intensity","Essential Skills Evidence",
+    "NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags",
+    ...NACE.map(s=>"ESS: "+s),
+    ...NACE8.map(s=>"NACE: "+s)];
   const data = [head];
   for(const r of S.rows.filter(rowMatches)){
     data.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.credit_hours||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
@@ -1012,7 +1023,10 @@ document.getElementById("xlsxBtn").onclick = () => {
       (r.nace_skills||[]).map(s=>s.intensity||"Secondary").join("; "),
       (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
       (r.blooms||[]).join("; "),
-      r.flags.join("; ")]);
+      r.flags.join("; "),
+      ...NACE.map(skill=>{ const s=r.skills.find(x=>x.skill===skill); return s?s.intensity:""; }),
+      ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; })
+    ]);
   }
   const ws = XLSX.utils.aoa_to_sheet(data);
   ws["!freeze"] = {xSplit:0, ySplit:1};
