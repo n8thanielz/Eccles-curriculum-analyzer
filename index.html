@@ -297,7 +297,7 @@ const DEFAULT_FIELDS = [
 let S = { fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)), rows: [], queue: [] };
 let running = false, stopFlag = false, reextractSources = [];
 const _h = localStorage.getItem("sa_hiddenCols");
-let hiddenCols = new Set(_h ? JSON.parse(_h) : ["Department","Extracted"]);
+let hiddenCols = new Set(_h ? JSON.parse(_h) : ["Department","Credit Hrs","Extracted"]);
 function saveHiddenCols(){ localStorage.setItem("sa_hiddenCols", JSON.stringify([...hiddenCols])); }
 
 const REMOVED_FIELDS = new Set(["Pedagogy","Classroom Policies & Conduct","Class Format","Final Exam","Required Materials","Textbooks Required","Articles Required","Subscriptions","Software Platforms","Other Required Materials"]);
@@ -313,6 +313,7 @@ function migrateFields(fields){
 function migrateRows(rows){
   for(const r of rows){
     if(r.title===undefined) r.title="not stated";
+    if(r.credit_hours===undefined) r.credit_hours="not stated";
     if(r.meeting_pattern===undefined) r.meeting_pattern="not stated";
     if(r.location===undefined) r.location="not stated";
     if(r.nace_skills===undefined) r.nace_skills=[];
@@ -427,6 +428,7 @@ ${fieldLines}
 Also extract these standard items:
 - course_number (e.g. "ACCTG 3100"), course_title (the full name of the course, e.g. "Financial Accounting"), semester, year, instructor name — shared across all sections.
 - section: the section number (e.g. "009"). If the syllabus covers multiple sections, output ONE object per section. If no section number is stated, output one object with section "not stated".
+- credit_hours: the number of credit hours this course is worth (e.g. "3"). Extract the numeric value as a string. Shared across all sections.
 - meeting_pattern: the days and times the section meets (e.g. "MWF 9:10–10:00 AM", "TR 2:00–3:20 PM"). SECTION-SPECIFIC — will differ across sections.
 - location: the classroom, building, or delivery mode for this section (e.g. "SFEBB 2110", "online", "hybrid"). SECTION-SPECIFIC.
 - durable_skills: assess which of these Essential Skills the course develops. Only tag a skill when the syllabus contains concrete evidence (an activity, assignment, outcome, or policy). For each tagged skill, include: (1) intensity — "Primary" if the skill is central with multiple graded assessments directly measuring it; "Secondary" if at least one graded component develops it; "Incidental" if it appears but is not a graded focus; (2) evidence — briefly state the specific evidence found. Do not tag skills without evidence. Shared across sections. The skills and their definitions are:\n${NACE.map(s=>`  - ${s}: ${SKILL_DEFS[s]}`).join("\n")}
@@ -441,7 +443,7 @@ Rules:
 - Base everything strictly on the document.
 
 Return ONLY valid JSON, no markdown fences, in this exact shape:
-{"sections":[{"course_number":"","course_title":"","section":"","semester":"","year":"","instructor":"","meeting_pattern":"","location":"","fields":{${active.map(f=>`"${f.name}":""`).join(",")}},"durable_skills":[{"skill":"","intensity":"Primary|Secondary|Incidental","evidence":""}],"nace_skills":[{"skill":"","intensity":"Primary|Secondary|Incidental","evidence":""}],"blooms_levels":[],"confidence_flags":[]}]}`;
+{"sections":[{"course_number":"","course_title":"","credit_hours":"","section":"","semester":"","year":"","instructor":"","meeting_pattern":"","location":"","fields":{${active.map(f=>`"${f.name}":""`).join(",")}},"durable_skills":[{"skill":"","intensity":"Primary|Secondary|Incidental","evidence":""}],"nace_skills":[{"skill":"","intensity":"Primary|Secondary|Incidental","evidence":""}],"blooms_levels":[],"confidence_flags":[]}]}`;
 }
 
 function buildHint(q){
@@ -511,6 +513,7 @@ document.getElementById("runBtn").onclick = async () => {
           id: uid(), source: q.name,
           course, dept, level,
           title: s.course_title || "not stated",
+          credit_hours: s.credit_hours || "not stated",
           section: s.section || "not stated",
           semester: s.semester || q.semester || "not stated",
           year: String(s.year || q.year || "not stated"),
@@ -577,6 +580,7 @@ function renderResults(){
     "<tr><th style='width:30px'><input type='checkbox' id='selAllChk' title='Select all'></th><th>Course</th>" +
     (show("Department") ? "<th>Dept</th>" : "") +
     (show("Title") ? "<th>Title</th>" : "") +
+    (show("Credit Hrs") ? "<th>Cr Hrs</th>" : "") +
     "<th>Sec</th><th>Semester</th>" +
     (show("Meeting") ? "<th>Meeting</th>" : "") +
     (show("Location") ? "<th>Location</th>" : "") +
@@ -611,6 +615,7 @@ function renderResults(){
       <td>${esc(r.course)}${flagBadge}</td>` +
       (show("Department") ? `<td style="white-space:nowrap">${esc(r.dept||parseCourse(r.course).dept)}</td>` : "") +
       (show("Title") ? `<td class="${isNS(r.title||"")?"flagged":""}">${nsv(r.title)}</td>` : "") +
+      (show("Credit Hrs") ? `<td style="text-align:center">${nsv(r.credit_hours)}</td>` : "") +
       `<td>${esc(r.section)}</td><td>${esc(r.semester)} ${esc(r.year)}</td>` +
       (show("Meeting") ? `<td class="${sectionFlagged("meeting_pattern")?"flagged":""}">${nsv(r.meeting_pattern)}</td>` : "") +
       (show("Location") ? `<td class="${sectionFlagged("location")?"flagged":""}">${nsv(r.location)}</td>` : "") +
@@ -635,7 +640,7 @@ function renderResults(){
 ["searchBox","semFilter","deptFilter","levelFilter","skillFilter"].forEach(id => document.getElementById(id).oninput = renderResults);
 
 function renderColPanel(){
-  const toggleable = ["Department","Title","Meeting","Location","Instructor","Essential Skills",...activeFieldNames(),"Extracted"];
+  const toggleable = ["Department","Title","Credit Hrs","Meeting","Location","Instructor","Essential Skills",...activeFieldNames(),"Extracted"];
   const panel = document.getElementById("colPanel");
   panel.innerHTML = '<span class="small" style="margin-right:12px;font-weight:600">Show columns:</span>' +
     toggleable.map(name=>`<label style="margin-right:14px;font-size:13px;cursor:pointer;white-space:nowrap"><input type="checkbox" ${!hiddenCols.has(name)?"checked":""} data-col="${esc(name)}"> ${esc(name)}</label>`).join("");
@@ -705,6 +710,7 @@ document.getElementById("reextractFileInput").onchange = async (e) => {
           id:uid(), source:src,
           course, dept, level,
           title: s.course_title||"not stated",
+          credit_hours: s.credit_hours||"not stated",
           section: s.section||"not stated",
           semester: s.semester||q.semester||"not stated",
           year: String(s.year||q.year||"not stated"),
@@ -737,7 +743,7 @@ function openDetail(r){
   document.getElementById("detailTitle").textContent = r.course+" sec "+r.section+" | "+r.semester+" "+r.year+" | source: "+r.source;
   const names = activeFieldNames();
   let h = "";
-  [["course","Course"],["title","Course Title"],["section","Section"],["semester","Semester"],["year","Year"],["instructor","Instructor"],["meeting_pattern","Meeting Pattern"],["location","Location"]].forEach(([k,label])=>{
+  [["course","Course"],["title","Course Title"],["credit_hours","Credit Hours"],["section","Section"],["semester","Semester"],["year","Year"],["instructor","Instructor"],["meeting_pattern","Meeting Pattern"],["location","Location"]].forEach(([k,label])=>{
     h += `<label>${label}${editing.flags.includes(k)?" (AI flagged uncertain)":""}</label><input data-core="${k}" value="${esc(r[k]||"")}">`;
   });
   for(const n of names){
@@ -788,6 +794,7 @@ document.getElementById("detailReextractInput").onchange = async e => {
       S.rows.push({ id:uid(), source:src,
         course, dept, level,
         title:s.course_title||"not stated",
+        credit_hours:s.credit_hours||"not stated",
         section:s.section||"not stated", semester:s.semester||q.semester||"not stated",
         year:String(s.year||q.year||"not stated"), instructor:s.instructor||"not stated",
         meeting_pattern:s.meeting_pattern||"not stated", location:s.location||"not stated",
@@ -974,11 +981,11 @@ document.getElementById("dbFileInput").onchange = async e => {
 };
 document.getElementById("csvBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Department","Level","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Intensity","Essential Skills Evidence","NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags"];
+  const head = ["Source File","Department","Level","Course","Course Title","Credit Hours","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Intensity","Essential Skills Evidence","NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags"];
   const csvCell = v => '"' + String(v==null?"":v).replace(/"/g,'""') + '"';
   const lines = [head.map(csvCell).join(",")];
   for(const r of S.rows.filter(rowMatches)){
-    lines.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
+    lines.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.credit_hours||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
       ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
       r.skills.map(s=>s.skill).join("; "),
       r.skills.map(s=>s.intensity||"Secondary").join("; "),
@@ -993,10 +1000,10 @@ document.getElementById("csvBtn").onclick = () => {
 };
 document.getElementById("xlsxBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Department","Level","Course","Course Title","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Intensity","Essential Skills Evidence","NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags"];
+  const head = ["Source File","Department","Level","Course","Course Title","Credit Hours","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,"Essential Skills","Essential Skills Intensity","Essential Skills Evidence","NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags"];
   const data = [head];
   for(const r of S.rows.filter(rowMatches)){
-    data.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
+    data.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.credit_hours||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
       ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
       r.skills.map(s=>s.skill).join("; "),
       r.skills.map(s=>s.intensity||"Secondary").join("; "),
