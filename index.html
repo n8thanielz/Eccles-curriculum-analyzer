@@ -985,7 +985,8 @@ document.getElementById("csvBtn").onclick = () => {
     "Essential Skills","Essential Skills Intensity","Essential Skills Evidence",
     "NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags",
     ...NACE.map(s=>"ESS: "+s),
-    ...NACE8.map(s=>"NACE: "+s)];
+    ...NACE8.map(s=>"NACE: "+s),
+    ...BLOOM_LEVELS.map(b=>"Bloom: "+b)];
   const csvCell = v => '"' + String(v==null?"":v).replace(/"/g,'""') + '"';
   const lines = [head.map(csvCell).join(",")];
   for(const r of S.rows.filter(rowMatches)){
@@ -1000,7 +1001,8 @@ document.getElementById("csvBtn").onclick = () => {
       (r.blooms||[]).join("; "),
       r.flags.join("; "),
       ...NACE.map(skill=>{ const s=r.skills.find(x=>x.skill===skill); return s?s.intensity:""; }),
-      ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; })
+      ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; }),
+      ...BLOOM_LEVELS.map(b=>(r.blooms||[]).includes(b)?"Yes":"")
     ].map(csvCell).join(","));
   }
   download("syllabus-export-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
@@ -1011,7 +1013,8 @@ document.getElementById("xlsxBtn").onclick = () => {
     "Essential Skills","Essential Skills Intensity","Essential Skills Evidence",
     "NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags",
     ...NACE.map(s=>"ESS: "+s),
-    ...NACE8.map(s=>"NACE: "+s)];
+    ...NACE8.map(s=>"NACE: "+s),
+    ...BLOOM_LEVELS.map(b=>"Bloom: "+b)];
   const data = [head];
   for(const r of S.rows.filter(rowMatches)){
     data.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.credit_hours||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
@@ -1025,7 +1028,8 @@ document.getElementById("xlsxBtn").onclick = () => {
       (r.blooms||[]).join("; "),
       r.flags.join("; "),
       ...NACE.map(skill=>{ const s=r.skills.find(x=>x.skill===skill); return s?s.intensity:""; }),
-      ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; })
+      ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; }),
+      ...BLOOM_LEVELS.map(b=>(r.blooms||[]).includes(b)?"Yes":"")
     ]);
   }
   const ws = XLSX.utils.aoa_to_sheet(data);
