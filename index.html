@@ -325,6 +325,7 @@ function migrateRows(rows){
     for(const arr of [r.skills, r.nace_skills]){
       for(const s of (arr||[])) if(!s.intensity) s.intensity = "Secondary";
     }
+    if(r.flags) r.flags = normalizeFlags(r.flags);
   }
   return rows;
 }
@@ -339,6 +340,8 @@ function persist(){
 function restore(){ try{ const d = JSON.parse(localStorage.getItem("syllabusAnalyzer")); if(d){ S.fields = migrateFields(d.fields)||S.fields; S.rows = migrateRows(d.rows||[]); } }catch(e){} }
 const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const normalizeFlags = arr => (Array.isArray(arr)?arr:[]).map(f=>typeof f==='string'?f:(f.field||f.name||Object.keys(f)[0]||String(f)));
+const parseRM = val => { const tb=/Textbook:\s*(Yes|No)/i.exec(val||""); const ar=/Articles:\s*(Yes|No)/i.exec(val||""); return [tb?tb[1]:"not stated",ar?ar[1]:"not stated"]; };
 
 /* ---------- tabs ---------- */
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
@@ -524,7 +527,7 @@ document.getElementById("runBtn").onclick = async () => {
           skills: Array.isArray(s.durable_skills) ? s.durable_skills.filter(k=>k&&k.skill) : [],
           nace_skills: Array.isArray(s.nace_skills) ? s.nace_skills.filter(k=>k&&k.skill) : [],
           blooms: Array.isArray(s.blooms_levels) ? s.blooms_levels.filter(b=>BLOOM_LEVELS.includes(b)) : [],
-          flags: Array.isArray(s.confidence_flags) ? s.confidence_flags : [],
+          flags: normalizeFlags(s.confidence_flags),
           extractedAt: new Date().toISOString()
         });
       }
@@ -721,7 +724,7 @@ document.getElementById("reextractFileInput").onchange = async (e) => {
           skills: Array.isArray(s.durable_skills)?s.durable_skills.filter(k=>k&&k.skill):[],
           nace_skills: Array.isArray(s.nace_skills)?s.nace_skills.filter(k=>k&&k.skill):[],
           blooms: Array.isArray(s.blooms_levels)?s.blooms_levels.filter(b=>BLOOM_LEVELS.includes(b)):[],
-          flags: Array.isArray(s.confidence_flags)?s.confidence_flags:[],
+          flags: normalizeFlags(s.confidence_flags),
           extractedAt: new Date().toISOString()
         });
       }
@@ -802,7 +805,7 @@ document.getElementById("detailReextractInput").onchange = async e => {
         skills:Array.isArray(s.durable_skills)?s.durable_skills.filter(k=>k&&k.skill):[],
         nace_skills:Array.isArray(s.nace_skills)?s.nace_skills.filter(k=>k&&k.skill):[],
         blooms:Array.isArray(s.blooms_levels)?s.blooms_levels.filter(b=>BLOOM_LEVELS.includes(b)):[],
-        flags:Array.isArray(s.confidence_flags)?s.confidence_flags:[], extractedAt:new Date().toISOString() });
+        flags:normalizeFlags(s.confidence_flags), extractedAt:new Date().toISOString() });
     }
     persist();
     document.getElementById("detailModal").style.display = "none";
@@ -981,55 +984,67 @@ document.getElementById("dbFileInput").onchange = async e => {
 };
 document.getElementById("csvBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Department","Level","Course","Course Title","Credit Hours","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,
-    "Essential Skills","Essential Skills Intensity","Essential Skills Evidence",
-    "NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags",
+  const nonRM = names.filter(n=>n!=="Reading Materials");
+  const hasRM = names.includes("Reading Materials");
+  const head = [
+    "Source File","Department","Level","Course","Course Title","Credit Hours",
+    "Section","Semester","Year","Meeting Pattern","Location","Instructor",
     ...NACE.map(s=>"ESS: "+s),
     ...NACE8.map(s=>"NACE: "+s),
-    ...BLOOM_LEVELS.map(b=>"Bloom: "+b)];
+    ...BLOOM_LEVELS.map(b=>"Bloom: "+b),
+    ...nonRM,
+    ...(hasRM?["Textbook Required","Articles Required"]:[]),
+    "Essential Skills Evidence","NACE Evidence","AI Uncertainty Flags"
+  ];
   const csvCell = v => '"' + String(v==null?"":v).replace(/"/g,'""') + '"';
   const lines = [head.map(csvCell).join(",")];
   for(const r of S.rows.filter(rowMatches)){
-    lines.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.credit_hours||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
-      ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
-      r.skills.map(s=>s.skill).join("; "),
-      r.skills.map(s=>s.intensity||"Secondary").join("; "),
-      r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
-      (r.nace_skills||[]).map(s=>s.skill).join("; "),
-      (r.nace_skills||[]).map(s=>s.intensity||"Secondary").join("; "),
-      (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
-      (r.blooms||[]).join("; "),
-      r.flags.join("; "),
+    const [tb,ar] = hasRM ? parseRM(r.fields["Reading Materials"]) : [];
+    lines.push([
+      r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,
+      r.course,r.title||"not stated",r.credit_hours||"not stated",
+      r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
       ...NACE.map(skill=>{ const s=r.skills.find(x=>x.skill===skill); return s?s.intensity:""; }),
       ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; }),
-      ...BLOOM_LEVELS.map(b=>(r.blooms||[]).includes(b)?"Yes":"")
+      ...BLOOM_LEVELS.map(b=>(r.blooms||[]).includes(b)?"Yes":""),
+      ...nonRM.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
+      ...(hasRM?[tb,ar]:[]),
+      r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
+      (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
+      r.flags.join("; ")
     ].map(csvCell).join(","));
   }
   download("syllabus-export-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+lines.join("\r\n"), "text/csv");
 };
 document.getElementById("xlsxBtn").onclick = () => {
   const names = activeFieldNames();
-  const head = ["Source File","Department","Level","Course","Course Title","Credit Hours","Section","Semester","Year","Meeting Pattern","Location","Instructor",...names,
-    "Essential Skills","Essential Skills Intensity","Essential Skills Evidence",
-    "NACE Competencies","NACE Intensity","NACE Evidence","Bloom's Levels","AI Uncertainty Flags",
+  const nonRM = names.filter(n=>n!=="Reading Materials");
+  const hasRM = names.includes("Reading Materials");
+  const head = [
+    "Source File","Department","Level","Course","Course Title","Credit Hours",
+    "Section","Semester","Year","Meeting Pattern","Location","Instructor",
     ...NACE.map(s=>"ESS: "+s),
     ...NACE8.map(s=>"NACE: "+s),
-    ...BLOOM_LEVELS.map(b=>"Bloom: "+b)];
+    ...BLOOM_LEVELS.map(b=>"Bloom: "+b),
+    ...nonRM,
+    ...(hasRM?["Textbook Required","Articles Required"]:[]),
+    "Essential Skills Evidence","NACE Evidence","AI Uncertainty Flags"
+  ];
   const data = [head];
   for(const r of S.rows.filter(rowMatches)){
-    data.push([r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,r.course,r.title||"not stated",r.credit_hours||"not stated",r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
-      ...names.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
-      r.skills.map(s=>s.skill).join("; "),
-      r.skills.map(s=>s.intensity||"Secondary").join("; "),
-      r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
-      (r.nace_skills||[]).map(s=>s.skill).join("; "),
-      (r.nace_skills||[]).map(s=>s.intensity||"Secondary").join("; "),
-      (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
-      (r.blooms||[]).join("; "),
-      r.flags.join("; "),
+    const [tb,ar] = hasRM ? parseRM(r.fields["Reading Materials"]) : [];
+    data.push([
+      r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,
+      r.course,r.title||"not stated",r.credit_hours||"not stated",
+      r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,
       ...NACE.map(skill=>{ const s=r.skills.find(x=>x.skill===skill); return s?s.intensity:""; }),
       ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; }),
-      ...BLOOM_LEVELS.map(b=>(r.blooms||[]).includes(b)?"Yes":"")
+      ...BLOOM_LEVELS.map(b=>(r.blooms||[]).includes(b)?"Yes":""),
+      ...nonRM.map(n=>r.fields[n]==null?"not stated":r.fields[n]),
+      ...(hasRM?[tb,ar]:[]),
+      r.skills.map(s=>s.skill+": "+s.evidence).join(" | "),
+      (r.nace_skills||[]).map(s=>s.skill+": "+s.evidence).join(" | "),
+      r.flags.join("; ")
     ]);
   }
   const ws = XLSX.utils.aoa_to_sheet(data);

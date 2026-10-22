@@ -16,10 +16,11 @@ A browser-based tool for the David Eccles School of Business at the University o
   - **11 DESB Essential Skills** (synthesized from AACSB, NACE, USHE, and U of U definitions)
   - **8 NACE Career Readiness Competencies**
 - Assigns a skill **intensity level** for each tag: Primary, Secondary, or Incidental
-- Identifies **Bloom's Taxonomy** cognitive levels present in each course
+- Identifies **Bloom's Taxonomy** cognitive levels present in each course; fully editable per row
+- Extracts **credit hours** per section for credit-hour-weighted analysis
 - Auto-derives **department** and **course level** (1000–7000) from the course number
-- Stores results in a filterable, searchable database with department and level filters
-- Exports to CSV and Excel with intensity, Bloom's, and department columns
+- Stores results in a filterable, searchable database with semester, department, and level filters
+- Exports to CSV and Excel with per-skill intensity columns, per-Bloom boolean columns, and split reading material columns — ready to pivot in Excel
 
 ## Setup
 
@@ -43,10 +44,10 @@ The API key is stored only in your browser. Nothing is sent to any server other 
 | Tab | Purpose |
 |---|---|
 | Upload & Extract | Queue and run syllabus extraction |
-| Results | Browse, filter, search, and edit extracted rows |
-| Skills Matrix | Course × skill grid with intensity indicators (● Primary, ● Secondary, ○ Incidental) |
-| Dashboard | Stat cards, dept × skill coverage heatmap, Bloom's Taxonomy bar chart |
-| Coverage Analysis | Gap analysis table with configurable threshold; highlights under-covered skills by department |
+| Results | Browse, filter, search, and edit extracted rows; toggle visible columns; edit any field including Bloom's levels |
+| Skills Matrix | Course × skill grid with intensity indicators (● Primary, ● Secondary, ○ Incidental); filterable by semester |
+| Dashboard | Stat cards, dept × skill coverage heatmap, Bloom's Taxonomy bar chart; filterable by semester and department |
+| Coverage Analysis | Gap analysis table with configurable threshold; filterable by semester and department |
 | Fields | Add, remove, or redefine custom extraction fields |
 | Settings | API key and model selection |
 
@@ -70,11 +71,27 @@ The AI identifies which of the six cognitive levels are present based on learnin
 | Topics Covered | Subject-matter topics from the schedule |
 | Assessment Methods | Graded components with weights |
 | Engagement Activities | Hands-on student activities beyond lecture and reading |
-| Reading Materials | Textbook (Yes/No) and Articles (Yes/No) |
+| Reading Materials | Textbook (Yes/No) and Articles (Yes/No); exports as two separate boolean columns |
 | Additional Required Materials | Subscriptions, software, and other required purchases |
 | Attendance Policy | Tracking method, absence limits, grade impact |
 
-Core items extracted on every syllabus: course number, department, course level, course title, section, semester, year, instructor, meeting pattern, location, Essential Skills with intensity, NACE Competencies with intensity, Bloom's Taxonomy levels, and AI confidence flags.
+Core items extracted on every syllabus: course number, department, course level, course title, credit hours, section, semester, year, instructor, meeting pattern, location, Essential Skills with intensity and evidence, NACE Competencies with intensity and evidence, Bloom's Taxonomy levels, and AI confidence flags.
+
+## Export format
+
+The CSV and Excel exports use the same column structure, designed for Excel pivot tables:
+
+| Column group | Columns |
+|---|---|
+| Course identifiers | Source File, Department, Level, Course, Course Title, Credit Hours, Section, Semester, Year, Meeting Pattern, Location, Instructor |
+| ESS per skill (×11) | `ESS: Foundational Analytical Skills` … one column per skill, value = Primary / Secondary / Incidental or blank |
+| NACE per skill (×8) | `NACE: Career & Self-Development` … same pattern |
+| Bloom's per level (×6) | `Bloom: Remember` … value = Yes or blank |
+| Custom fields | One column per active extraction field; Reading Materials splits into `Textbook Required` and `Articles Required` |
+| Evidence | `Essential Skills Evidence`, `NACE Evidence` — pipe-delimited skill: evidence pairs |
+| Flags | `AI Uncertainty Flags` — fields the AI was uncertain about |
+
+The Skills Matrix tab has its own separate export (`Export Matrix CSV`) with one row per unique course and intensity values ready to summarize.
 
 ## Technical notes
 
