@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Eccles Curriculum Analyzer — Timesheet Generator</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 680px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; }
+  h1 { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+  p, li { font-size: 0.9rem; color: #444; line-height: 1.6; }
+  code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.85rem; }
+  button { margin-top: 24px; padding: 10px 22px; font-size: 0.95rem; font-weight: 600; cursor: pointer; background: #1a7f37; color: #fff; border: none; border-radius: 6px; }
+  button:hover { background: #166d2e; }
+  .note { margin-top: 16px; font-size: 0.82rem; color: #666; border-left: 3px solid #ccc; padding-left: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Eccles Curriculum Analyzer — Timesheet Generator</h1>
+<p>Click the button to download a formatted Excel timesheet. Open the file and type hours into the yellow <strong>Hours</strong> column — the Running Total and subtotals update automatically.</p>
+<ul>
+  <li>Re-generate and re-open the file each time you need a fresh copy with new rows added.</li>
+  <li>New commit sessions are added to the <code>DEV_SESSIONS</code> array in this file by Claude as development continues.</li>
+</ul>
+
+<button onclick="generate()">Download Excel Timesheet</button>
+
+<p class="note">Uses <a href="https://github.com/gitbrent/xlsx-js-style" target="_blank">xlsx-js-style</a> (MIT). Requires an internet connection to load the library on first use.</p>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA — Claude adds rows here after each development session
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DEV_SESSIONS = [
+  { date: "Before Jul 21, 2026", desc: "Original Syllabus Analyzer v1 (pre-git history)" },
+  { date: "Jul 21, 2026",        desc: "Initial build: syllabus upload, extraction pipeline, field schema, Anthropic API integration" },
+  { date: "Jul 22, 2026",        desc: "GitHub Pages setup, README, course title as extracted field" },
+  { date: "Sep 1, 2026",         desc: "Field cleanup: removed pedagogy / conduct / final exam fields; refined Engagement Activities definition" },
+  { date: "Sep 30, 2026",        desc: "Essential Skills framework (11 skills, AACSB/NACE/USHE definitions), dual skills matrix (Essential + NACE), required materials overhaul" },
+  { date: "Oct 1, 2026",         desc: "NACE export, UX improvements, confidence flag badges, re-extract from detail modal, Dashboard + Coverage Analysis baseline" },
+  { date: "Oct 2, 2026",         desc: "Skills Matrix readability improvements, README update" },
+  { date: "Oct 12, 2026",        desc: "Readability pass, report generation (print-to-PDF), gap threshold slider, ROADMAP.md, File System Access API for Save, AI flags refinement, avg-skills bug fix" },
+  { date: "Oct 13, 2026",        desc: "Dashboard department filter, Skills Matrix intensity dots redesign" },
+  { date: "Oct 14, 2026",        desc: "Coverage Analysis dept filter, editable Bloom's levels in detail editor, credit hours field, per-skill intensity columns in CSV/Excel export" },
+  { date: "Oct 22, 2026",        desc: "Export restructure: column reorder, Reading Materials split into boolean columns, remove redundant concatenated columns, fix AI flags [object Object] bug" },
+  { date: "Oct 29, 2026",        desc: "Update REVIEW.md, QUESTIONS-FOR-DEANS-TEAM.md, and README to reflect all implemented features; generate timesheet" },
+];
+
+const REVIEW_ITEMS = [
+  { date: "",   desc: "Associate dean curriculum review (REVIEW.md — 25-item analysis)" },
+  { date: "",   desc: "Dean's team questions document (QUESTIONS-FOR-DEANS-TEAM.md — 28 questions)" },
+  { date: "",   desc: "Dean's team meetings and demos" },
+  { date: "",   desc: "Other planning, research, or correspondence" },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GENERATOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+function generate() {
+  const GREEN  = "1a7f37";
+  const BLUE   = "1565C0";
+  const WHITE  = "FFFFFF";
+  const LGRAY  = "F5F5F5";
+  const LGREEN = "E8F5E9";
+  const LBLUE  = "E3F2FD";
+  const LYELL  = "FFFDE7";
+  const LPURP  = "F3E5F5";
+  const ROWBDR = { bottom: { style: "thin", color: { rgb: "DDDDDD" } } };
+
+  // Helper: styled cell factories
+  const cell = (v, t, s) => ({ v, t: t || "s", s });
+  const txt  = (v, s) => cell(v, "s", s);
+  const num  = (v, f, s) => ({ v: v == null ? null : v, t: "n", f, s: { numFmt: "#,##0.0", alignment: { horizontal: "center", vertical: "top" }, ...s } });
+  const blank = (bg) => txt("", { fill: bg ? { fgColor: { rgb: bg } } : undefined });
+
+  const baseFont   = { sz: 10, name: "Calibri" };
+  const boldFont   = { sz: 10, name: "Calibri", bold: true };
+  const wrapAlign  = { wrapText: true, vertical: "top" };
+  const centerWrap = { wrapText: true, vertical: "top", horizontal: "center" };
+
+  const rows = [];
+
+  // ── Title
+  rows.push([
+    txt("Eccles Curriculum Analyzer — Time Log", { font: { sz: 14, bold: true, name: "Calibri" } }),
+    blank(), blank(), blank()
+  ]);
+  rows.push([
+    txt("David Eccles School of Business · Prepared for dean's team compensation review",
+      { font: { sz: 10, italic: true, color: { rgb: "666666" }, name: "Calibri" } }),
+    blank(), blank(), blank()
+  ]);
+  rows.push([blank(), blank(), blank(), blank()]); // spacer
+
+  // ── Column headers
+  const hdrStyle = (text) => txt(text, {
+    font: { ...boldFont, color: { rgb: WHITE } },
+    fill: { fgColor: { rgb: "37474F" } },
+    alignment: { ...wrapAlign, horizontal: "center" },
+    border: ROWBDR
+  });
+  rows.push([
+    hdrStyle("Date"),
+    hdrStyle("Activity / Description"),
+    hdrStyle("Hours"),
+    hdrStyle("Running Total")
+  ]);
+
+  const HEADER_ROWS = rows.length; // 4 rows above first data row
+
+  // ── Section builder
+  let runningTotalStartRow = null; // tracks the first hours cell for the running total formula
+
+  function sectionHeader(label, color) {
+    rows.push([
+      txt(label, {
+        font: { ...boldFont, color: { rgb: WHITE } },
+        fill: { fgColor: { rgb: color } },
+        alignment: { vertical: "center" }
+      }),
+      txt("", { fill: { fgColor: { rgb: color } } }),
+      txt("", { fill: { fgColor: { rgb: color } } }),
+      txt("", { fill: { fgColor: { rgb: color } } }),
+    ]);
+  }
+
+  function dataRow(date, desc, inputBg, borderColor) {
+    const r = rows.length + 1; // 1-indexed Excel row number
+    if (runningTotalStartRow === null) runningTotalStartRow = r;
+
+    const hoursCell = {
+      v: null, t: "n",
+      s: {
+        numFmt: "#,##0.0",
+        fill: { fgColor: { rgb: inputBg } },
+        alignment: { horizontal: "center", vertical: "top" },
+        border: {
+          ...ROWBDR,
+          left:  { style: "medium", color: { rgb: borderColor } },
+          right: { style: "medium", color: { rgb: borderColor } },
+        }
+      }
+    };
+
+    const rtFormula = r === runningTotalStartRow
+      ? `C${r}`
+      : `D${r - 1}+C${r}`;
+
+    const rtCell = {
+      v: 0, t: "n", f: rtFormula,
+      s: {
+        numFmt: "#,##0.0",
+        font: { ...baseFont, color: { rgb: "444444" } },
+        alignment: { horizontal: "center", vertical: "top" },
+        border: ROWBDR
+      }
+    };
+
+    rows.push([
+      txt(date, { font: baseFont, alignment: wrapAlign, border: ROWBDR }),
+      txt(desc, { font: baseFont, alignment: wrapAlign, border: ROWBDR }),
+      hoursCell,
+      rtCell
+    ]);
+
+    return r;
+  }
+
+  function subtotalRow(label, firstDataRow, lastDataRow, bg) {
+    rows.push([
+      blank(bg),
+      txt(label, {
+        font: boldFont,
+        fill: { fgColor: { rgb: bg } },
+        alignment: { horizontal: "right", vertical: "top" }
+      }),
+      {
+        v: 0, t: "n", f: `SUM(C${firstDataRow}:C${lastDataRow})`,
+        s: {
+          numFmt: "#,##0.0",
+          font: boldFont,
+          fill: { fgColor: { rgb: bg } },
+          alignment: { horizontal: "center", vertical: "top" },
+          border: { top: { style: "medium", color: { rgb: "888888" } } }
+        }
+      },
+      blank(bg)
+    ]);
+    return rows.length; // 1-indexed row number of the subtotal
+  }
+
+  // ── Development sessions
+  sectionHeader("DEVELOPMENT SESSIONS", GREEN);
+  const devFirst = rows.length + 1;
+  DEV_SESSIONS.forEach(s => dataRow(s.date, s.desc, LYELL, GREEN));
+  const devLast = rows.length;
+  const devSubRow = subtotalRow("Subtotal — development", devFirst, devLast, LGREEN);
+
+  rows.push([blank(), blank(), blank(), blank()]); // spacer
+
+  // ── Review & meetings (no running total column — separate section)
+  sectionHeader("REVIEW, PLANNING & MEETINGS", BLUE);
+  const revFirst = rows.length + 1;
+  REVIEW_ITEMS.forEach(s => dataRow(s.date, s.desc, LBLUE, BLUE));
+  const revLast = rows.length;
+  const revSubRow = subtotalRow("Subtotal — review & meetings", revFirst, revLast, LBLUE);
+
+  rows.push([blank(), blank(), blank(), blank()]); // spacer
+
+  // ── Grand total
+  rows.push([
+    blank(LPURP),
+    txt("TOTAL PROJECT HOURS", {
+      font: { ...boldFont, sz: 11 },
+      fill: { fgColor: { rgb: LPURP } },
+      alignment: { horizontal: "right", vertical: "top" }
+    }),
+    {
+      v: 0, t: "n", f: `C${devSubRow}+C${revSubRow}`,
+      s: {
+        numFmt: "#,##0.0",
+        font: { bold: true, sz: 12, name: "Calibri" },
+        fill: { fgColor: { rgb: LPURP } },
+        alignment: { horizontal: "center", vertical: "top" },
+        border: { top: { style: "medium", color: { rgb: "888888" } }, bottom: { style: "double", color: { rgb: "666666" } } }
+      }
+    },
+    blank(LPURP)
+  ]);
+
+  // ── Sheet setup
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  ws["!cols"] = [
+    { wch: 22 },  // Date
+    { wch: 68 },  // Description
+    { wch: 10 },  // Hours
+    { wch: 14 },  // Running Total
+  ];
+
+  ws["!rows"] = rows.map((_, i) => ({
+    hpt: i === 0 ? 26 : i === 3 ? 20 : 46
+  }));
+
+  // Freeze header rows
+  ws["!freeze"] = { xSplit: 0, ySplit: 4 };
+
+  // Merge title across all columns
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Time Log");
+  XLSX.writeFile(wb, "Eccles-Curriculum-Analyzer-Timesheet.xlsx");
+}
+</script>
+</body>
+</html>
