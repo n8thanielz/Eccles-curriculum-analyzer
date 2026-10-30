@@ -756,8 +756,10 @@ document.getElementById("reextractFileInput").onchange = async (e) => {
 
 /* ---------- detail editor ---------- */
 let editing = null;
+let dirtyDetail = false;
 function openDetail(r){
   editing = r;
+  dirtyDetail = false;
   document.getElementById("detailTitle").textContent = r.course+" sec "+r.section+" | "+r.semester+" "+r.year+" | source: "+r.source;
   const names = activeFieldNames();
   let h = "";
@@ -775,9 +777,15 @@ function openDetail(r){
   h += `<label>Essential Skills (one per line: Skill | Intensity | evidence)</label><textarea data-skills>${esc(r.skills.map(s=>s.skill+" | "+(s.intensity||"Secondary")+" | "+s.evidence).join("\n"))}</textarea>`;
   h += `<label>NACE Competencies (one per line: Skill | Intensity | evidence)</label><textarea data-nace-skills>${esc((r.nace_skills||[]).map(s=>s.skill+" | "+(s.intensity||"Secondary")+" | "+s.evidence).join("\n"))}</textarea>`;
   document.getElementById("detailBody").innerHTML = h;
+  document.getElementById("detailBody").addEventListener("input",  () => { dirtyDetail = true; }, { once: false });
+  document.getElementById("detailBody").addEventListener("change", () => { dirtyDetail = true; }, { once: false });
   document.getElementById("detailModal").style.display = "block";
 }
-document.getElementById("detailClose").onclick = () => document.getElementById("detailModal").style.display = "none";
+document.getElementById("detailClose").onclick = () => {
+  if(dirtyDetail && !confirm("You have unsaved changes. Close without saving?")) return;
+  dirtyDetail = false;
+  document.getElementById("detailModal").style.display = "none";
+};
 document.getElementById("detailSave").onclick = () => {
   const box = document.getElementById("detailBody");
   box.querySelectorAll("[data-core]").forEach(i => editing[i.dataset.core] = i.value.trim());
@@ -786,6 +794,7 @@ document.getElementById("detailSave").onclick = () => {
   editing.skills = parseSkills(box.querySelector("[data-skills]"));
   editing.nace_skills = parseSkills(box.querySelector("[data-nace-skills]"));
   editing.blooms = BLOOM_LEVELS.filter(b => box.querySelector(`[data-bloom="${b}"]`)?.checked);
+  dirtyDetail = false;
   persist(); renderResults();
   document.getElementById("detailModal").style.display = "none";
 };
