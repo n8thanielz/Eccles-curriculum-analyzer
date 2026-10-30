@@ -56,13 +56,13 @@
   .gap-cell { background:#fff3cd !important; color:#7a6000; font-weight:600; }
   #covTable td, #covTable th, #dashTable td, #dashTable th { font-size:12px; padding:5px 8px; }
   #covTable th, #dashTable th { font-size:11px; }
-  .intensity-P { display:inline-block; width:18px; height:18px; border-radius:50%; background:#1a7f37; cursor:default; vertical-align:middle; }
-  .intensity-S { display:inline-block; width:13px; height:13px; border-radius:50%; background:#4caf50; cursor:default; vertical-align:middle; }
-  .intensity-I { display:inline-block; width:13px; height:13px; border-radius:50%; background:transparent; border:2px solid #4caf50; cursor:default; vertical-align:middle; box-sizing:border-box; }
+  .intensity-P { display:inline-block; width:16px; height:16px; border-radius:50%; background:#2da44e; cursor:default; vertical-align:middle; }
+  .intensity-S { display:inline-block; width:16px; height:16px; clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%); background:#d4a017; cursor:default; vertical-align:middle; }
+  .intensity-I { display:inline-block; width:16px; height:16px; clip-path:polygon(50% 0%,100% 100%,0% 100%); background:#c94f00; cursor:default; vertical-align:middle; }
   .bloom-badge { display:inline-block; background:#e8eaf6; color:#3949ab; border-radius:3px; padding:1px 6px; font-size:11px; margin:1px; }
-  .chip-P { display:inline-block; background:#1a7f37; color:#fff; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
-  .chip-S { display:inline-block; background:#4caf50; color:#fff; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
-  .chip-I { display:inline-block; background:#c8e6c9; color:#1a5e20; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
+  .chip-P { display:inline-block; background:#2da44e; color:#fff; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
+  .chip-S { display:inline-block; background:#d4a017; color:#fff; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
+  .chip-I { display:inline-block; background:#c94f00; color:#fff; border-radius:10px; padding:2px 8px; margin:1px; font-size:11px; }
   .dept-hdr td { background:#f4f4f4; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.8px; color:#555; border-top:2px solid #ddd; }
   .dept-sub td { background:#fafafa; font-size:11px; color:#aaa; font-style:italic; border-bottom:2px solid #eee; }
 </style>
@@ -150,7 +150,7 @@
       <span class="small" id="skillsCount"></span>
       <button class="secondary" id="matrixCsvBtn" style="margin-left:auto">Export Matrix CSV</button>
     </div>
-    <p class="small" style="margin-bottom:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">Each row is a unique course number. Hover a cell to read the AI's evidence. The totals row counts courses at any intensity.&nbsp; <span style="display:inline-flex;align-items:center;gap:5px"><span class="intensity-P"></span> Primary — core, multiple graded assessments</span> <span style="display:inline-flex;align-items:center;gap:5px"><span class="intensity-S"></span> Secondary — at least one graded component</span> <span style="display:inline-flex;align-items:center;gap:5px"><span class="intensity-I"></span> Incidental — present but not a graded focus</span></p>
+    <p class="small" style="margin-bottom:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">Each row is a unique course number. Hover a cell to read the AI's evidence. The totals row counts courses at any intensity.&nbsp; <span style="display:inline-flex;align-items:center;gap:6px"><span class="intensity-P"></span> Primary — core, multiple graded assessments</span> <span style="display:inline-flex;align-items:center;gap:6px"><span class="intensity-S"></span> Secondary — at least one graded component</span> <span style="display:inline-flex;align-items:center;gap:6px"><span class="intensity-I"></span> Incidental — present but not a graded focus</span></p>
     <div style="overflow:auto; max-height:65vh">
       <table id="skillsTable"><thead></thead><tbody></tbody></table>
     </div>
