@@ -603,6 +603,7 @@ function renderResults(){
     (show("Instructor") ? "<th>Instructor</th>" : "") +
     (show("Essential Skills") ? "<th>Essential Skills</th>" : "") +
     visNames.map(n=>"<th>"+esc(n)+"</th>").join("") +
+    (show("Verified") ? "<th>✓</th>" : "") +
     (show("Extracted") ? "<th>Extracted</th>" : "") +
     "</tr>";
   const tb = document.querySelector("#resultsTable tbody"); tb.innerHTML = "";
@@ -639,6 +640,7 @@ function renderResults(){
       (show("Instructor") ? `<td class="${sectionFlagged("instructor")?"flagged":""}">${nsv(r.instructor)}</td>` : "") +
       (show("Essential Skills") ? `<td>${r.skills.map(s=>`<span class="${chipClass(s.intensity)}" title="${esc(s.intensity+': '+s.evidence)}">${esc(s.skill)}</span>`).join("")}</td>` : "") +
       visNames.map(cell).join("") +
+      (show("Verified") ? `<td style="text-align:center">${r.verified?'<span style="color:#1a7f37;font-size:14px;font-weight:700" title="Manually reviewed">✓</span>':''}</td>` : "") +
       (show("Extracted") ? `<td style="white-space:nowrap;color:#888;font-size:12px">${r.extractedAt?r.extractedAt.slice(0,10):dash}</td>` : "");
     tr.querySelector('[data-a="sel"]').onclick = e => { e.stopPropagation(); r._sel = e.target.checked; };
     tr.onclick = () => openDetail(r);
@@ -767,6 +769,7 @@ function openDetail(r){
     h += `<label>${label}${editing.flags.includes(k)?" (AI flagged uncertain)":""}</label><input data-core="${k}" value="${esc(r[k]||"")}">`;
   });
   h += `<label>Classification</label><select data-core="classification"><option value="">— unclassified —</option>${["Business Core","Major","Service","Elective"].map(c=>`<option${(r.classification||"")===c?" selected":""}>${c}</option>`).join("")}</select>`;
+  h += `<label style="display:inline-flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer;margin-bottom:6px"><input type="checkbox" data-core-bool="verified" ${r.verified?"checked":""}> <span>Mark as Verified <span style="font-weight:400;color:#666;font-size:12px">(row has been manually reviewed)</span></span></label>`;
   [["section","Section"],["semester","Semester"],["year","Year"],["instructor","Instructor"],["meeting_pattern","Meeting Pattern"],["location","Location"]].forEach(([k,label])=>{
     h += `<label>${label}${editing.flags.includes(k)?" (AI flagged uncertain)":""}</label><input data-core="${k}" value="${esc(r[k]||"")}">`;
   });
@@ -789,6 +792,7 @@ document.getElementById("detailClose").onclick = () => {
 document.getElementById("detailSave").onclick = () => {
   const box = document.getElementById("detailBody");
   box.querySelectorAll("[data-core]").forEach(i => editing[i.dataset.core] = i.value.trim());
+  box.querySelectorAll("[data-core-bool]").forEach(i => editing[i.dataset.coreBool] = i.checked);
   box.querySelectorAll("[data-field]").forEach(t => editing.fields[t.dataset.field] = t.value.trim());
   const parseSkills = ta => ta.value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{ const parts=l.split("|"); const sk=parts[0].trim(); const maybeIntensity=parts[1]&&parts[1].trim(); const isIntensity=["Primary","Secondary","Incidental"].includes(maybeIntensity); const intensity=isIntensity?maybeIntensity:"Secondary"; const ev=(isIntensity?parts.slice(2):parts.slice(1)).join("|").trim(); return {skill:sk, intensity, evidence:ev}; });
   editing.skills = parseSkills(box.querySelector("[data-skills]"));
@@ -1023,7 +1027,7 @@ document.getElementById("csvBtn").onclick = () => {
   const hasRM = names.includes("Reading Materials");
   const head = [
     "Source File","Department","Level","Course","Course Title","Credit Hours",
-    "Section","Semester","Year","Meeting Pattern","Location","Instructor","Classification",
+    "Section","Semester","Year","Meeting Pattern","Location","Instructor","Classification","Verified",
     ...NACE.map(s=>"ESS: "+s),
     ...NACE8.map(s=>"NACE: "+s),
     ...BLOOM_LEVELS.map(b=>"Bloom: "+b),
@@ -1038,7 +1042,7 @@ document.getElementById("csvBtn").onclick = () => {
     lines.push([
       r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,
       r.course,r.title||"not stated",r.credit_hours||"not stated",
-      r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,r.classification||"",
+      r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,r.classification||"",r.verified?"Yes":"",
       ...NACE.map(skill=>{ const s=r.skills.find(x=>x.skill===skill); return s?s.intensity:""; }),
       ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; }),
       ...BLOOM_LEVELS.map(b=>(r.blooms||[]).includes(b)?"Yes":""),
@@ -1057,7 +1061,7 @@ document.getElementById("xlsxBtn").onclick = () => {
   const hasRM = names.includes("Reading Materials");
   const head = [
     "Source File","Department","Level","Course","Course Title","Credit Hours",
-    "Section","Semester","Year","Meeting Pattern","Location","Instructor","Classification",
+    "Section","Semester","Year","Meeting Pattern","Location","Instructor","Classification","Verified",
     ...NACE.map(s=>"ESS: "+s),
     ...NACE8.map(s=>"NACE: "+s),
     ...BLOOM_LEVELS.map(b=>"Bloom: "+b),
@@ -1071,7 +1075,7 @@ document.getElementById("xlsxBtn").onclick = () => {
     data.push([
       r.source,r.dept||parseCourse(r.course).dept,r.level||parseCourse(r.course).level,
       r.course,r.title||"not stated",r.credit_hours||"not stated",
-      r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,r.classification||"",
+      r.section,r.semester,r.year,r.meeting_pattern||"not stated",r.location||"not stated",r.instructor,r.classification||"",r.verified?"Yes":"",
       ...NACE.map(skill=>{ const s=r.skills.find(x=>x.skill===skill); return s?s.intensity:""; }),
       ...NACE8.map(skill=>{ const s=(r.nace_skills||[]).find(x=>x.skill===skill); return s?s.intensity:""; }),
       ...BLOOM_LEVELS.map(b=>(r.blooms||[]).includes(b)?"Yes":""),
